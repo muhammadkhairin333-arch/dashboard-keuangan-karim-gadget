@@ -2130,15 +2130,21 @@ body::before {
   /* Body Padding to prevent overlap */
   body { padding-bottom: 70px; }
   .main-content {
-    padding: var(--space-md) var(--space-sm) 80px var(--space-sm) !important;
+    padding: var(--space-sm) var(--space-sm) 80px var(--space-sm) !important;
+    padding-top: 16px !important;
   }
   
-  /* Grids to 1 column */
-  .report-kpi-grid, .kpi-grid, .sales-kpi-grid {
-    grid-template-columns: 1fr !important;
-    gap: 12px;
+  /* Grids to 2-col on mobile (more compact) */
+  .report-kpi-grid, .kpi-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px;
+  }
+  .sales-kpi-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px;
   }
   
+  /* Force single col for complex grids */
   .charts-equal, .charts-2col {
     grid-template-columns: 1fr !important;
   }

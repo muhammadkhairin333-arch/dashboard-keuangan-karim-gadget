@@ -57,7 +57,13 @@ def convert_excel_to_json():
                 if isinstance(tanggal_raw, datetime):
                     last_date = tanggal_raw.strftime('%Y-%m-%d')
                 elif isinstance(tanggal_raw, str):
-                    last_date = tanggal_raw
+                    import re
+                    m = re.match(r'^(\d{1,2})[/\-](\d{1,2})[/\-]?(\d{4})$', tanggal_raw)
+                    if m:
+                        d, m_, y = m.groups()
+                        last_date = f"{y}-{int(m_):02d}-{int(d):02d}"
+                    else:
+                        last_date = tanggal_raw
             
             # Use last known date for rows without date (merged cells)
             tanggal = last_date
@@ -159,6 +165,14 @@ def convert_excel_to_json():
                     except:
                         tanggal_keluar = str(tanggal_keluar_raw)
             
+            # Normalisasi tahun salah (2020, 2024 -> 2026)
+            if tanggal_keluar and tanggal_keluar.startswith('2020-'):
+                tanggal_keluar = '2026-' + tanggal_keluar[5:]
+            if tanggal_keluar and tanggal_keluar.startswith('2024-'):
+                tanggal_keluar = '2026-' + tanggal_keluar[5:]
+            if tanggal_masuk and tanggal_masuk.startswith('2024-'):
+                tanggal_masuk = '2026-' + tanggal_masuk[5:]
+
             # Hitung turnover (waktu putar dalam hari)
             turnover_days = None
             if tanggal_masuk and tanggal_keluar:
