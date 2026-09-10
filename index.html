@@ -91,7 +91,7 @@
 
       <div class="charts-2col">
         <div class="chart-card" style="animation-delay:100ms">
-          <div class="chart-title">📊 Tren Saldo & Profit per Bulan</div>
+          <div class="chart-title">📊 Tren Saldo per Bulan</div>
           <div class="chart-h280"><canvas id="chart-trend"></canvas></div>
         </div>
         <div class="chart-card" style="animation-delay:150ms">
@@ -220,6 +220,10 @@
                   <input type="text" class="form-input" id="f-desc" placeholder="cth: iPhone 15 Pro 128GB Natural Titanium iBox" autocomplete="off" required>
                   <div class="autocomplete-dropdown" id="f-desc-ac" style="display:none"></div>
                   <div class="form-hint">Ketik 2+ huruf untuk saran otomatis dari riwayat transaksi</div>
+                </div>
+                <div class="form-group" id="fg-qty">
+                  <label class="form-label" for="f-qty">Jumlah / Qty (Opsional)</label>
+                  <input type="text" class="form-input" id="f-qty" placeholder="Contoh: 2">
                 </div>
                 <div class="form-group" id="fg-masuk">
                   <label class="form-label" for="f-masuk">Uang Masuk (Rp)</label>
@@ -393,15 +397,9 @@
         </div>
       </div>
 
-      <div class="charts-equal">
-        <div class="chart-card" style="animation-delay:100ms">
-          <div class="chart-title">📊 Pemasukan vs Pengeluaran per Bulan (All Time)</div>
-          <div class="chart-h300"><canvas id="chart-monthly-bars"></canvas></div>
-        </div>
-        <div class="chart-card" style="animation-delay:150ms">
-          <div class="chart-title">📈 Tren Profit Bersih (All Time)</div>
-          <div class="chart-h300"><canvas id="chart-profit-trend"></canvas></div>
-        </div>
+      <div class="chart-card" style="animation-delay:100ms; margin-bottom: 20px;">
+        <div class="chart-title">📊 Pemasukan vs Pengeluaran per Bulan (All Time)</div>
+        <div class="chart-h300"><canvas id="chart-monthly-bars"></canvas></div>
       </div>
 
       <div class="card" style="animation-delay:200ms">
@@ -415,7 +413,6 @@
               <th>Jml Tx</th>
               <th>Pemasukan</th>
               <th>Pengeluaran</th>
-              <th>Profit</th>
               <th>Saldo Akhir</th>
             </tr></thead>
             <tbody id="monthly-tbody"></tbody>
@@ -466,6 +463,11 @@
           <div class="sales-kpi-label" style="color:rgba(255,255,255,0.8)">✅ Total Profit</div>
           <div class="sales-kpi-value" id="sales-kpi-total-profit" style="color:#fff">Rp 0</div>
           <div class="sales-kpi-sub" style="color:rgba(255,255,255,0.7)">dari unit yang sudah terjual</div>
+        </div>
+        <div class="sales-kpi-card avg-profit">
+          <div class="sales-kpi-label">📊 Margin Profit</div>
+          <div class="sales-kpi-value" id="sales-kpi-margin">0%</div>
+          <div class="sales-kpi-sub">dari pendapatan jual</div>
         </div>
         <div class="sales-kpi-card avg-profit">
           <div class="sales-kpi-label">📈 Rata-rata Profit/Unit</div>
@@ -544,6 +546,10 @@
         <div class="form-group span2">
           <label class="form-label">Deskripsi</label>
           <input type="text" class="form-input" id="etx-desc">
+        </div>
+        <div class="form-group span2">
+          <label class="form-label">Jumlah / Qty (Opsional)</label>
+          <input type="text" class="form-input" id="etx-qty">
         </div>
         <div class="form-group">
           <label class="form-label">Uang Masuk (Rp)</label>
