@@ -463,13 +463,14 @@ const Store = {
         currentSaldo += (parseFloat(t.uangMasuk) || 0) - (parseFloat(t.uangKeluar) || 0);
       }
       t.calcSaldo = currentSaldo;
-      t.saldo = currentSaldo; // Keep t.saldo in sync for table display
+      // JANGAN timpa t.saldo, biarkan sesuai Google Sheets agar tidak melenceng!
     });
   },
 
   getLatestSaldo() {
     if (!this._transactions.length) return 0;
-    return this._transactions[this._transactions.length - 1].calcSaldo || 0;
+    const last = this._transactions[this._transactions.length - 1];
+    return last.saldo != null ? parseFloat(last.saldo) : (last.calcSaldo || 0);
   },
 
   getDescriptions() {
@@ -514,7 +515,7 @@ const Store = {
       if (!groups[key]) groups[key] = { sortKey: key, bulan: label, masuk: 0, keluar: 0, saldo: 0, count: 0 };
       groups[key].masuk += t.uangMasuk || 0;
       groups[key].keluar += t.uangKeluar || 0;
-      groups[key].saldo = t.calcSaldo; // Selalu terupdate ke transaksi terakhir di periode ini
+      if (t.saldo != null) groups[key].saldo = parseFloat(t.saldo);
       groups[key].count++;
     });
     return Object.values(groups)
@@ -539,7 +540,7 @@ const Store = {
       if (!map[key]) map[key] = { label: groupByDay ? fmtDateNum(key) : fmtYearMonth(key), masuk: 0, keluar: 0, count: 0, saldo: 0 };
       map[key].masuk += t.uangMasuk || 0;
       map[key].keluar += t.uangKeluar || 0;
-      if (t.calcSaldo != null) map[key].saldo = t.calcSaldo;
+      if (t.saldo != null) map[key].saldo = parseFloat(t.saldo);
       map[key].count++;
     });
     return Object.keys(map).sort().map(k => ({
@@ -560,7 +561,7 @@ const Store = {
       if (!years[key]) years[key] = { tahun: key, masuk: 0, keluar: 0, saldo: 0, count: 0 };
       years[key].masuk += t.uangMasuk || 0;
       years[key].keluar += t.uangKeluar || 0;
-      if (t.calcSaldo != null) years[key].saldo = t.calcSaldo;
+      if (t.saldo != null) years[key].saldo = parseFloat(t.saldo);
       years[key].count++;
     });
     return Object.values(years).sort((a, b) => a.tahun.localeCompare(b.tahun)).map(y => ({ ...y, profit: y.masuk - y.keluar }));
@@ -572,7 +573,7 @@ const Store = {
     filtered.forEach(t => {
       if ((t.uangMasuk || 0) > 0) { masuk += t.uangMasuk; countMasuk++; }
       if ((t.uangKeluar || 0) > 0) { keluar += t.uangKeluar; countKeluar++; }
-      if (t.calcSaldo != null) saldo = t.calcSaldo;
+      if (t.saldo != null) saldo = parseFloat(t.saldo);
     });
     return { masuk, keluar, profit: masuk - keluar, count: filtered.length, countMasuk, countKeluar, saldo };
   },
