@@ -448,9 +448,10 @@ const Store = {
     filtered.forEach(t => {
       if (!t.tanggal || !isValidDate(t.tanggal)) return;
       const key = groupByDay ? t.tanggal : t.tanggal.substr(0, 7);
-      if (!map[key]) map[key] = { label: groupByDay ? fmtDateNum(key) : fmtYearMonth(key), masuk: 0, keluar: 0, count: 0 };
+      if (!map[key]) map[key] = { label: groupByDay ? fmtDateNum(key) : fmtYearMonth(key), masuk: 0, keluar: 0, count: 0, saldo: 0 };
       map[key].masuk += t.uangMasuk || 0;
       map[key].keluar += t.uangKeluar || 0;
+      if (t.saldo != null) map[key].saldo = t.saldo;
       map[key].count++;
     });
     return Object.keys(map).sort().map(k => ({
@@ -458,6 +459,7 @@ const Store = {
       profit: map[k].masuk - map[k].keluar,
       masuk: map[k].masuk,
       keluar: map[k].keluar,
+      saldo: map[k].saldo,
       count: map[k].count
     }));
   },
@@ -827,11 +829,22 @@ const Charts = {
     const ctx = el('chart-donut'); if (!ctx) return;
     const colors = { 'HPP (Inventory)': '#ef4444', 'Biaya Operasional': '#f59e0b', 'Biaya Bank & Admin': '#8b5cf6', 'Ekuitas & Aset': '#3b82f6', 'Lainnya': '#94a3b8' };
     const labels = Object.keys(cats);
+    const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
+    let msgEl = document.getElementById('donut-empty-msg');
     if (!labels.length) {
-      const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
-      if (wrapper) wrapper.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:13px">Belum ada data pengeluaran</div>';
+      if (!msgEl) {
+        msgEl = document.createElement('div');
+        msgEl.id = 'donut-empty-msg';
+        msgEl.style = 'display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:13px';
+        msgEl.textContent = 'Belum ada data pengeluaran';
+        wrapper.appendChild(msgEl);
+      }
+      msgEl.style.display = 'flex';
+      ctx.style.display = 'none';
       return;
     }
+    if (msgEl) msgEl.style.display = 'none';
+    ctx.style.display = 'block';
     const d = this._defaults({ callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)}` } });
     this._c.donut = new Chart(ctx, {
       type: 'doughnut', data: {
