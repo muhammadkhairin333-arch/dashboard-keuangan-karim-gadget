@@ -926,7 +926,7 @@ const Charts = {
       type: 'doughnut', data: {
         labels, datasets: [{ data: Object.values(cats), backgroundColor: labels.map(l => colors[l] || '#94a3b8'), borderWidth: 0, hoverOffset: 6 }]
       },
-      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { ...d.plugins.legend, position: 'right' } } }
+      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { ...d.plugins.legend, position: 'bottom' } } }
     });
   },
 
@@ -956,7 +956,7 @@ const Charts = {
       type: 'doughnut', data: {
         labels, datasets: [{ data: Object.values(cats), backgroundColor: labels.map(l => colors[l] || '#10b981'), borderWidth: 0, hoverOffset: 6 }]
       },
-      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { ...d.plugins.legend, position: 'right' } } }
+      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { ...d.plugins.legend, position: 'bottom' } } }
     });
   },
 
