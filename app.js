@@ -24,6 +24,14 @@ const fmtDate = (s) => {
   try { return new Date(s + (s.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }); }
   catch { return s; }
 };
+const fmtDateNum = (s) => {
+  if (!s) return '–';
+  try {
+    const d = new Date(s + (s.length === 10 ? 'T00:00:00' : ''));
+    if (isNaN(d)) return s;
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  } catch { return s; }
+};
 const el = (id) => document.getElementById(id);
 const setText = (id, v) => { const e = el(id); if (e) e.textContent = v; };
 
@@ -106,17 +114,26 @@ function applyCalendarFilter(arr, field, filter) {
 
 function filterLabel(filter) {
   if (!filter || filter.mode === 'semua') return 'Semua Waktu';
-  if (filter.mode === 'hariini') return 'Hari Ini';
-  if (filter.mode === 'mingguini') return 'Minggu Ini';
-  if (filter.mode === 'minggulalu') return 'Minggu Lalu';
   if (filter.mode === 'bulan') return fmtYearMonth(`${filter.year}-${String(filter.month).padStart(2, '0')}`);
   if (filter.mode === 'tahun') return `Tahun ${filter.year}`;
-  if (filter.mode === 'hari') return filter.date ? fmtDate(filter.date) : 'Per Hari';
-  if (filter.mode === 'minggu') return filter.week ? `Minggu ${filter.week.replace('-W', ' Ke-')}` : 'Per Minggu';
+  if (filter.mode === 'hari') return filter.date ? fmtDateNum(filter.date) : 'Per Hari';
+  if (filter.mode === 'minggu') {
+    if (!filter.week) return 'Per Minggu';
+    const [y, w] = filter.week.split('-W');
+    const year = parseInt(y);
+    const week = parseInt(w);
+    const simple = new Date(year, 0, 1 + (week - 1) * 7);
+    const dayOfWeek = simple.getDay() || 7;
+    const monday = new Date(simple);
+    monday.setDate(simple.getDate() - dayOfWeek + 1);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return `${fmtDateNum(monday.toISOString().split('T')[0])} - ${fmtDateNum(sunday.toISOString().split('T')[0])}`;
+  }
   if (filter.mode === 'custom') {
-    const s = filter.start ? fmtDate(filter.start) : '–';
-    const e = filter.end ? fmtDate(filter.end) : '–';
-    return `${s} – ${e}`;
+    const s = filter.start ? fmtDateNum(filter.start) : '–';
+    const e = filter.end ? fmtDateNum(filter.end) : '–';
+    return `${s} - ${e}`;
   }
   return 'Semua Waktu';
 }
@@ -598,14 +615,11 @@ const CalendarFilter = {
         <div class="cal-filter-row">
           <select class="cal-mode-sel form-select-sm" id="calf-${id}-mode" onchange="CalendarFilter.onModeChange('${id}')">
             ${showSemua ? '<option value="semua">Semua Waktu</option>' : ''}
-            <option value="hariini">Hari Ini</option>
-            <option value="mingguini">Minggu Ini</option>
-            <option value="minggulalu">Minggu Lalu</option>
-            <option value="hari">Per Hari</option>
-            <option value="minggu">Per Minggu</option>
-            <option value="bulan">Per Bulan</option>
-            <option value="tahun">Per Tahun</option>
-            <option value="custom">Custom Range</option>
+            <option value="hari">Hari</option>
+            <option value="minggu">Minggu</option>
+            <option value="bulan">Bulan</option>
+            <option value="tahun">Tahun</option>
+            <option value="custom">Custom</option>
           </select>
           <span class="cal-filter-label" id="calf-${id}-label">Semua Waktu</span>
         </div>
@@ -622,7 +636,7 @@ const CalendarFilter = {
     const curYear = now.getFullYear();
     const curMonth = now.getMonth() + 1;
 
-    if (mode === 'semua' || mode === 'hariini' || mode === 'mingguini' || mode === 'minggulalu') {
+    if (mode === 'semua') {
       extraEl.style.display = 'none';
       extraEl.innerHTML = '';
     } else if (mode === 'bulan') {
