@@ -858,7 +858,7 @@ const Charts = {
   renderIncomeDonut(cats) {
     this.destroy('donutIncome');
     const ctx = el('chart-donut-income'); if (!ctx) return;
-    const colors = { 'Penjualan Utama': '#10b981', 'Pendapatan Lainnya': '#34d399', 'Pendapatan': '#10b981' };
+    const colors = { 'Penjualan Utama': '#10b981', 'Pendapatan Lainnya': '#0ea5e9', 'Pendapatan': '#10b981' };
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
     let msgEl = document.getElementById('donut-income-empty-msg');
