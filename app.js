@@ -84,10 +84,11 @@ function applyCalendarFilter(arr, field, filter) {
       if (mode === 'minggulalu') return itemDate >= lastMonday && itemDate < monday;
     }
     if (mode === 'hari') {
+      if (!filter.date) return false;
       return val === filter.date;
     }
     if (mode === 'minggu') {
-      if (!filter.week) return true;
+      if (!filter.week) return false;
       const [y, w] = filter.week.split('-W');
       const year = parseInt(y);
       const week = parseInt(w);
@@ -104,6 +105,7 @@ function applyCalendarFilter(arr, field, filter) {
     if (mode === 'bulan') return d.getFullYear() === parseInt(year) && d.getMonth() === parseInt(month) - 1;
     if (mode === 'tahun') return d.getFullYear() === parseInt(year);
     if (mode === 'custom') {
+      if (!start && !end) return false;
       const from = start ? new Date(start + 'T00:00:00') : new Date('2000-01-01');
       const to = end ? new Date(end + 'T23:59:59') : new Date('2099-12-31');
       return d >= from && d <= to;
@@ -406,14 +408,7 @@ const Store = {
     }
   },
 
-  getLatestSaldo(filter) {
-    if (!filter || filter.mode === 'semua') {
-      const sorted = [...this._transactions].filter(t => t.saldo && isValidDate(t.tanggal)).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-      return sorted.length ? sorted[sorted.length - 1].saldo : 0;
-    }
-    const filtered = applyCalendarFilter([...this._transactions], 'tanggal', filter).filter(t => t.saldo != null).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-    if (filtered.length) return filtered[filtered.length - 1].saldo;
-    
+  getLatestSaldo() {
     const sorted = [...this._transactions].filter(t => t.saldo && isValidDate(t.tanggal)).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
     return sorted.length ? sorted[sorted.length - 1].saldo : 0;
   },
@@ -724,6 +719,14 @@ const CalendarFilter = {
       const year = el(`calf-${id}-year`) ? el(`calf-${id}-year`).value : String(new Date().getFullYear());
       return { mode: 'tahun', year };
     }
+    if (mode === 'hari') {
+      const date = el(`calf-${id}-date`) ? el(`calf-${id}-date`).value : '';
+      return { mode: 'hari', date };
+    }
+    if (mode === 'minggu') {
+      const week = el(`calf-${id}-week`) ? el(`calf-${id}-week`).value : '';
+      return { mode: 'minggu', week };
+    }
     if (mode === 'custom') {
       const start = el(`calf-${id}-start`) ? el(`calf-${id}-start`).value : '';
       const end = el(`calf-${id}-end`) ? el(`calf-${id}-end`).value : '';
@@ -983,7 +986,7 @@ const App = {
   // ---- Overview ----
   _renderOverview() {
     const filter = this.overview.filter;
-    const saldo = Store.getLatestSaldo(filter);
+    const saldo = Store.getLatestSaldo();
     setText('kpi-saldo', fmt(saldo));
 
     const stats = Store.getStatsByFilter(filter);
