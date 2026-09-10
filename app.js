@@ -1140,12 +1140,10 @@ const Charts = {
         afterLabel: c => {
           const p = products[c.dataIndex];
           if (!p.detailList || (p.detailList.length <= 1 && p.detailList[0].nm === 'Lainnya')) return '';
-          const maxList = 5;
-          const displayList = p.detailList.slice(0, maxList).map(dt => `  • ${dt.nm}: ${mode === 'count' ? dt.count + 'x' : fmt(dt.profit)}`);
-          if (p.detailList.length > maxList) {
-            displayList.push(`  • dan ${p.detailList.length - maxList} lainnya...`);
-          }
-          return displayList;
+          return p.detailList.map(dt => {
+            const shortName = dt.nm.replace(/titanium/gi, 'T.');
+            return `  • ${shortName}: ${mode === 'count' ? dt.count + 'x' : fmt(dt.profit)}`;
+          });
         }
       } 
     });
