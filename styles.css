@@ -2082,7 +2082,7 @@ body::before {
 
   /* Bottom Navigation Bar & Header padding */
   .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 999; }
-  .app-container { padding-top: 76px; }
+  .app-container { padding-top: 90px; }
   .navbar-menu {
     display: flex !important;
     position: fixed;
@@ -2184,6 +2184,7 @@ body::before {
   .filter-bar-v2 {
     flex-wrap: wrap !important;
     gap: 8px !important;
+    padding: 12px 14px !important;
   }
   .filter-bar-v2 > * {
     min-width: 0;
@@ -2201,7 +2202,10 @@ body::before {
     width: 100% !important;
     min-width: 0 !important;
   }
-  #ov-filter-wrap {
+  #ov-filter-wrap,
+  #tx-filter-wrap,
+  #lap-filter-wrap,
+  #sales-filter-wrap {
     min-width: 0 !important;
     width: 100%;
   }
