@@ -132,12 +132,50 @@ function filterLabel(filter) {
     sunday.setDate(monday.getDate() + 6);
     return `${fmtDateNum(monday.toISOString().split('T')[0])} - ${fmtDateNum(sunday.toISOString().split('T')[0])}`;
   }
+}
   if (filter.mode === 'custom') {
     const s = filter.start ? fmtDateNum(filter.start) : '–';
     const e = filter.end ? fmtDateNum(filter.end) : '–';
     return `${s} - ${e}`;
   }
   return 'Semua Waktu';
+}
+
+function getPrevFilter(f) {
+  if (f.mode === 'hari') {
+    if (!f.date) return null;
+    const d = new Date(f.date + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    return { mode: 'hari', date: d.toISOString().split('T')[0] };
+  }
+  if (f.mode === 'minggu') {
+    if (!f.week) return null;
+    const [y, w] = f.week.split('-W');
+    let year = parseInt(y), week = parseInt(w);
+    week -= 1;
+    if (week < 1) { year -= 1; week = 52; }
+    return { mode: 'minggu', week: `${year}-W${String(week).padStart(2, '0')}` };
+  }
+  if (f.mode === 'bulan') {
+    let y = parseInt(f.year), m = parseInt(f.month);
+    m -= 1;
+    if (m < 1) { y -= 1; m = 12; }
+    return { mode: 'bulan', year: String(y), month: m };
+  }
+  if (f.mode === 'tahun') {
+    if (!f.year) return null;
+    return { mode: 'tahun', year: String(parseInt(f.year) - 1) };
+  }
+  if (f.mode === 'custom') {
+    if (!f.start || !f.end) return null;
+    const s = new Date(f.start + 'T00:00:00');
+    const e = new Date(f.end + 'T00:00:00');
+    const diff = e - s;
+    const prevE = new Date(s.getTime() - 86400000);
+    const prevS = new Date(prevE.getTime() - diff);
+    return { mode: 'custom', start: prevS.toISOString().split('T')[0], end: prevE.toISOString().split('T')[0] };
+  }
+  return null;
 }
 
 function getAvailableYears(arr, field) {
@@ -483,8 +521,12 @@ const Store = {
   getCategorySpend(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     const cats = {};
+    const validExpense = ['Inventory', 'Operasional', 'Expensess', 'Ekuitas'];
     filtered.forEach(t => {
-      if ((t.uangKeluar || 0) > 0) cats[t.kategori] = (cats[t.kategori] || 0) + t.uangKeluar;
+      if ((t.uangKeluar || 0) > 0) {
+        const k = validExpense.includes(t.kategori) ? t.kategori : 'Lainnya';
+        cats[k] = (cats[k] || 0) + t.uangKeluar;
+      }
     });
     return cats;
   },
@@ -492,8 +534,12 @@ const Store = {
   getIncomeSpend(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     const cats = {};
+    const validIncome = ['Penjualan Utama', 'Pendapatan Lainnya', 'Ekuitas'];
     filtered.forEach(t => {
-      if ((t.uangMasuk || 0) > 0) cats[t.kategori] = (cats[t.kategori] || 0) + t.uangMasuk;
+      if ((t.uangMasuk || 0) > 0) {
+        const k = validIncome.includes(t.kategori) ? t.kategori : 'Lainnya';
+        cats[k] = (cats[k] || 0) + t.uangMasuk;
+      }
     });
     return cats;
   },
@@ -828,7 +874,7 @@ const Charts = {
   renderDonut(cats) {
     this.destroy('donut');
     const ctx = el('chart-donut'); if (!ctx) return;
-    const colors = { 'Inventory': '#ef4444', 'Operasional': '#f59e0b', 'Expensess': '#8b5cf6', 'Ekuitas': '#3b82f6', 'Pendapatan': '#10b981', 'Lainnya': '#94a3b8' };
+    const colors = { 'Inventory': '#ef4444', 'Operasional': '#f59e0b', 'Expensess': '#8b5cf6', 'Ekuitas': '#ec4899', 'Pendapatan': '#10b981', 'Lainnya': '#94a3b8' };
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
     let msgEl = document.getElementById('donut-empty-msg');
@@ -1051,18 +1097,11 @@ const App = {
     setText('kpi-masuk', fmt(stats.masuk));
     setText('kpi-keluar', fmt(stats.keluar));
 
-    if (filter.mode === 'bulan') {
-      const curYM = `${filter.year}-${String(filter.month).padStart(2, '0')}`;
-      const allMonths = Store.getMonthlyStats();
-      const idx = allMonths.findIndex(m => m.bulan === curYM);
-      const prev = idx > 0 ? allMonths[idx - 1] : null;
-      if (prev) {
-        this._setChange('kpi-masuk-sub', stats.masuk, prev.masuk);
-        this._setChange('kpi-keluar-sub', stats.keluar, prev.keluar);
-      } else {
-        setText('kpi-masuk-sub', `${stats.count} transaksi`);
-        setText('kpi-keluar-sub', '–');
-      }
+    const prevFilter = getPrevFilter(filter);
+    if (prevFilter && filter.mode !== 'semua') {
+      const prevStats = Store.getStatsByFilter(prevFilter);
+      this._setChange('kpi-masuk-sub', stats.masuk, prevStats.masuk);
+      this._setChange('kpi-keluar-sub', stats.keluar, prevStats.keluar);
     } else {
       setText('kpi-masuk-sub', `${stats.count} transaksi`);
       setText('kpi-keluar-sub', '–');
