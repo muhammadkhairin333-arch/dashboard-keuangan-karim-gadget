@@ -1019,10 +1019,25 @@ const Charts = {
       let total = 0;
       Object.values(cats).forEach(v => total += v);
 
-      labels.forEach(l => {
+      labels.forEach((l, i) => {
         const val = cats[l] || 0;
-        const pct = total > 0 ? Math.round((val / total) * 100) : 0;
-        leg.innerHTML += `<div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary);"><span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#94a3b8'}"></span>${l} <span style="font-weight:700;color:var(--text-primary)">${pct}%</span></div>`;
+        let pctStr = '0%';
+        if (total > 0) {
+           const calcPct = (val / total) * 100;
+           if (calcPct > 0) pctStr = parseFloat(calcPct.toFixed(6)) + '%';
+        }
+        
+        const item = document.createElement('div');
+        item.style = 'display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary); cursor:pointer; user-select:none; transition:opacity 0.2s;';
+        item.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#94a3b8'}"></span>${l} <span style="font-weight:700;color:var(--text-primary)">${pctStr}</span>`;
+        item.onclick = () => {
+           const chart = this._c.donut;
+           if (!chart) return;
+           chart.toggleDataVisibility(i);
+           chart.update();
+           item.style.opacity = chart.getDataVisibility(i) ? '1' : '0.4';
+        };
+        leg.appendChild(item);
       });
       card.appendChild(leg);
     }
@@ -1074,15 +1089,25 @@ const Charts = {
       let total = 0;
       Object.values(cats).forEach(v => total += v);
 
-      labels.forEach(l => {
+      labels.forEach((l, i) => {
         const val = cats[l] || 0;
         let pctStr = '0%';
         if (total > 0) {
            const calcPct = (val / total) * 100;
-           if (calcPct > 0 && calcPct < 0.1) pctStr = '<0.1%';
-           else pctStr = parseFloat(calcPct.toFixed(2)) + '%';
+           if (calcPct > 0) pctStr = parseFloat(calcPct.toFixed(6)) + '%';
         }
-        leg.innerHTML += `<div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary);"><span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#10b981'}"></span>${l} <span style="font-weight:700;color:var(--text-primary)">${pctStr}</span></div>`;
+        
+        const item = document.createElement('div');
+        item.style = 'display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary); cursor:pointer; user-select:none; transition:opacity 0.2s;';
+        item.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#10b981'}"></span>${l} <span style="font-weight:700;color:var(--text-primary)">${pctStr}</span>`;
+        item.onclick = () => {
+           const chart = this._c.donutIncome;
+           if (!chart) return;
+           chart.toggleDataVisibility(i);
+           chart.update();
+           item.style.opacity = chart.getDataVisibility(i) ? '1' : '0.4';
+        };
+        leg.appendChild(item);
       });
       card.appendChild(leg);
     }
