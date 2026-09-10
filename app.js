@@ -152,7 +152,12 @@ function getAvailableYears(arr, field) {
 // ============ CATEGORY MAPPER ============
 function mapCategory(raw = '', desc = '') {
   const k = raw.trim();
-  if (k === 'Penjualan Utama' || k === 'Pendapatan Lainnya' || k === 'Pendapatan') return 'Pendapatan';
+  const d = (desc || '').toLowerCase();
+  
+  if (k === 'Penjualan Utama' || k === 'Pendapatan Lainnya' || k === 'Pendapatan') {
+    if (/iphone|ipad|jual|pelunasan|dp|tablet|laptop|aksesoris|samsung|xiaomi|oppo|vivo|realme/.test(d) || k === 'Penjualan Utama') return 'Penjualan Utama';
+    return 'Pendapatan Lainnya';
+  }
   if (k === 'HPP (Inventory)' || k === 'Inventory' || k === 'Invenroty') return 'Inventory';
   if (k === 'Biaya Operasional' || k === 'Operasional' || k === 'Expenses') return 'Operasional';
   if (k === 'Biaya Bank & Admin' || k === 'Expensess' || k === 'Biaya Bank') return 'Expensess';
@@ -161,7 +166,8 @@ function mapCategory(raw = '', desc = '') {
 }
 
 const BADGE_CLASS = {
-  'Pendapatan': 'badge badge-penjualan',
+  'Penjualan Utama': 'badge badge-penjualan',
+  'Pendapatan Lainnya': 'badge badge-lainnya',
   'Inventory': 'badge badge-hpp',
   'Operasional': 'badge badge-operasional',
   'Expensess': 'badge badge-bank',
@@ -479,6 +485,15 @@ const Store = {
     const cats = {};
     filtered.forEach(t => {
       if ((t.uangKeluar || 0) > 0) cats[t.kategori] = (cats[t.kategori] || 0) + t.uangKeluar;
+    });
+    return cats;
+  },
+
+  getIncomeSpend(filter) {
+    const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
+    const cats = {};
+    filtered.forEach(t => {
+      if ((t.uangMasuk || 0) > 0) cats[t.kategori] = (cats[t.kategori] || 0) + t.uangMasuk;
     });
     return cats;
   },
@@ -840,6 +855,36 @@ const Charts = {
     });
   },
 
+  renderIncomeDonut(cats) {
+    this.destroy('donutIncome');
+    const ctx = el('chart-donut-income'); if (!ctx) return;
+    const colors = { 'Penjualan Utama': '#10b981', 'Pendapatan Lainnya': '#34d399', 'Pendapatan': '#10b981' };
+    const labels = Object.keys(cats);
+    const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
+    let msgEl = document.getElementById('donut-income-empty-msg');
+    if (!labels.length) {
+      if (!msgEl) {
+        msgEl = document.createElement('div');
+        msgEl.id = 'donut-income-empty-msg';
+        msgEl.style = 'display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:13px';
+        msgEl.textContent = 'Belum ada data pemasukan';
+        wrapper.appendChild(msgEl);
+      }
+      msgEl.style.display = 'flex';
+      ctx.style.display = 'none';
+      return;
+    }
+    if (msgEl) msgEl.style.display = 'none';
+    ctx.style.display = 'block';
+    const d = this._defaults({ callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)}` } });
+    this._c.donutIncome = new Chart(ctx, {
+      type: 'doughnut', data: {
+        labels, datasets: [{ data: Object.values(cats), backgroundColor: labels.map(l => colors[l] || '#10b981'), borderWidth: 0, hoverOffset: 6 }]
+      },
+      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { ...d.plugins.legend, position: 'right' } } }
+    });
+  },
+
   renderTopProducts(products) {
     this.destroy('top');
     const ctx = el('chart-topproduct'); if (!ctx) return;
@@ -1026,6 +1071,7 @@ const App = {
     const trendData = Store.getTrendStats(filter);
     Charts.renderTrend(trendData);
     Charts.renderDonut(Store.getCategorySpend(filter));
+    if (Charts.renderIncomeDonut) Charts.renderIncomeDonut(Store.getIncomeSpend(filter));
     Charts.renderTopProducts(Store.getTopProducts(7, filter));
 
     const recent = Store.getTx({ filter, sortDir: 'desc' }).slice(0, 8);
@@ -1383,7 +1429,7 @@ const App = {
 
   _updateMoneyFields() {
     const kat = el('f-kategori') ? el('f-kategori').value : '';
-    const income = ['Pendapatan'];
+    const income = ['Penjualan Utama', 'Pendapatan Lainnya'];
     const expense = ['Inventory', 'Operasional', 'Expensess'];
     if (el('fg-masuk')) el('fg-masuk').style.display = expense.includes(kat) ? 'none' : 'flex';
     if (el('fg-keluar')) el('fg-keluar').style.display = income.includes(kat) ? 'none' : 'flex';
@@ -1481,8 +1527,12 @@ const App = {
     // Disable tombol submit selama proses
     const submitBtn = el('input-form') ? el('input-form').querySelector('button[type="submit"]') : null;
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Menyimpan...'; }
+
+    let sheetKat = kat;
+    if (kat === 'Penjualan Utama' || kat === 'Pendapatan Lainnya') sheetKat = 'Pendapatan';
+
     await Store.addTx({
-      tanggal, deskripsi: el('f-desc').value.trim(), kategori: kat, kategoriRaw: kat,
+      tanggal, deskripsi: el('f-desc').value.trim(), kategori: kat, kategoriRaw: sheetKat,
       quantity: el('f-qty') ? el('f-qty').value.trim() : '',
       uangMasuk: masuk, uangKeluar: keluar, saldo: newSaldo
     });
