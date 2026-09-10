@@ -610,12 +610,30 @@ const Store = {
       
       let baseModel = name;
       let detailStr = 'Lainnya';
-      const capMatch = name.search(/\b(?:64|128|256|512)\s*GB|\b1\s*TB\b/i);
       
-      if (capMatch > -1) {
-        baseModel = name.substring(0, capMatch).trim();
-        detailStr = name.substring(capMatch).trim();
+      const iphoneMatch = name.match(/iPhone\s+(?:\d+|SE|X[RS]?)(?:\s+(?:Pro Max|Pro|Plus|Mini))?/i);
+      const ipadMatch = name.match(/iPad(?:\s+(?:Pro|Air|mini))?(?:\s+\d+(?:\.\d+)?(?:\"|inch)?)?(?:\s+(?:Gen|Generasi)\s*\d+)?/i);
+      const watchMatch = name.match(/Apple\s+Watch(?:\s+(?:Series\s+\d+|SE|Ultra(?:\s+\d+)?))?/i);
+
+      if (iphoneMatch) {
+        baseModel = iphoneMatch[0];
+        detailStr = name.substring(iphoneMatch.index + iphoneMatch[0].length).trim();
+      } else if (ipadMatch) {
+        baseModel = ipadMatch[0];
+        detailStr = name.substring(ipadMatch.index + ipadMatch[0].length).trim();
+      } else if (watchMatch) {
+        baseModel = watchMatch[0];
+        detailStr = name.substring(watchMatch.index + watchMatch[0].length).trim();
+      } else {
+        const capMatch = name.search(/\b(?:64|128|256|512)\s*GB|\b1\s*TB\b/i);
+        if (capMatch > -1) {
+          baseModel = name.substring(0, capMatch).trim();
+          detailStr = name.substring(capMatch).trim();
+        }
       }
+      
+      detailStr = detailStr.replace(/^\s*[-:]\s*/, '').trim();
+      if (!detailStr) detailStr = 'Lainnya';
       
       baseModel = baseModel.replace(/\s*(iBox|Inter|inter|ibox|WIFI|Cellular|Wi-Fi)\s*/gi, ' ').replace(/\s*\(.*?\)\s*/g, '').trim();
       const k = baseModel;
@@ -1056,8 +1074,13 @@ const Charts = {
 
       labels.forEach(l => {
         const val = cats[l] || 0;
-        const pct = total > 0 ? parseFloat(((val / total) * 100).toFixed(1)) : 0;
-        leg.innerHTML += `<div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary);"><span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#10b981'}"></span>${l} <span style="font-weight:700;color:var(--text-primary)">${pct}%</span></div>`;
+        let pctStr = '0%';
+        if (total > 0) {
+           const calcPct = (val / total) * 100;
+           if (calcPct > 0 && calcPct < 0.1) pctStr = '<0.1%';
+           else pctStr = parseFloat(calcPct.toFixed(2)) + '%';
+        }
+        leg.innerHTML += `<div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary);"><span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#10b981'}"></span>${l} <span style="font-weight:700;color:var(--text-primary)">${pctStr}</span></div>`;
       });
       card.appendChild(leg);
     }
