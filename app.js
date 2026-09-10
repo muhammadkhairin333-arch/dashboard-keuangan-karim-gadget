@@ -1105,9 +1105,13 @@ const App = {
       if (filter.mode === 'semua') {
         setText('kpi-masuk-sub', `${stats.countMasuk} transaksi masuk`);
         setText('kpi-keluar-sub', `${stats.countKeluar} transaksi keluar`);
+        if (el('kpi-masuk-sub')) el('kpi-masuk-sub').style.color = 'var(--green)';
+        if (el('kpi-keluar-sub')) el('kpi-keluar-sub').style.color = 'var(--red)';
       } else {
         setText('kpi-masuk-sub', `${stats.count} transaksi`);
         setText('kpi-keluar-sub', '–');
+        if (el('kpi-masuk-sub')) el('kpi-masuk-sub').style.color = 'var(--text-muted)';
+        if (el('kpi-keluar-sub')) el('kpi-keluar-sub').style.color = 'var(--text-muted)';
       }
     }
 
