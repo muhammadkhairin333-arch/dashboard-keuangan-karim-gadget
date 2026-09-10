@@ -27,7 +27,7 @@ const fmtDate = (s) => {
 const el = (id) => document.getElementById(id);
 const setText = (id, v) => { const e = el(id); if (e) e.textContent = v; };
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbxkxDhh6obUQktMG6X94g5H3WTa6fIpWH5z84jxAQJxMIbpXGXjQkZd7lgRm2HTh58a/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxgw5ZDN4wqNWkVSZKl2pQv7AhcT6UppW0V80I7vbxtcYXKmzH9L85V-CfFihKFtfnX/exec';
 
 const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const BULAN_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -60,17 +60,17 @@ function applyCalendarFilter(arr, field, filter) {
     if (mode === 'mingguini' || mode === 'minggulalu') {
       const todayObj = new Date();
       // Adjust start of week to Monday
-      const dayOfWeek = todayObj.getDay() || 7; 
+      const dayOfWeek = todayObj.getDay() || 7;
       const monday = new Date(todayObj);
       monday.setDate(todayObj.getDate() - dayOfWeek + 1);
-      monday.setHours(0,0,0,0);
-      
+      monday.setHours(0, 0, 0, 0);
+
       const nextMonday = new Date(monday);
       nextMonday.setDate(monday.getDate() + 7);
-      
+
       const lastMonday = new Date(monday);
       lastMonday.setDate(monday.getDate() - 7);
-      
+
       const itemDate = new Date(val + 'T00:00:00');
       if (mode === 'mingguini') return itemDate >= monday && itemDate < nextMonday;
       if (mode === 'minggulalu') return itemDate >= lastMonday && itemDate < monday;
@@ -87,7 +87,7 @@ function applyCalendarFilter(arr, field, filter) {
       const dayOfWeek = simple.getDay() || 7;
       const monday = new Date(simple);
       monday.setDate(simple.getDate() - dayOfWeek + 1);
-      monday.setHours(0,0,0,0);
+      monday.setHours(0, 0, 0, 0);
       const nextMonday = new Date(monday);
       nextMonday.setDate(monday.getDate() + 7);
       const itemDate = new Date(val + 'T00:00:00');
@@ -360,7 +360,7 @@ const Store = {
       });
       const result = await res.json();
       if (result.success) {
-         toast('✅ Transaksi berhasil diupdate di Google Sheets!', 'success');
+        toast('✅ Transaksi berhasil diupdate di Google Sheets!', 'success');
       }
     } catch (e) { console.warn('[KG] Offline update tx — tersimpan lokal:', e.message); }
     return true;
@@ -1077,7 +1077,7 @@ const App = {
     el('etx-tanggal').value = t.tanggal || '';
     el('etx-kategori').value = mapCategory(t.kategori);
     el('etx-desc').value = t.deskripsi || '';
-    if(el('etx-qty')) el('etx-qty').value = t.quantity || t.jumlah || '';
+    if (el('etx-qty')) el('etx-qty').value = t.quantity || t.jumlah || '';
     el('etx-masuk').value = t.uangMasuk || '';
     el('etx-keluar').value = t.uangKeluar || 0;
     el('etx-saldo').value = t.saldo || 0;
@@ -1095,7 +1095,7 @@ const App = {
       uangKeluar: parseFloat(el('etx-keluar').value) || 0,
       saldo: parseFloat(el('etx-saldo').value) || 0,
     };
-    
+
     // Disable tombol saat menyimpan
     const submitBtn = el('modal-edit-tx').querySelector('.btn-primary');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Menyimpan...'; }
@@ -1107,10 +1107,10 @@ const App = {
       this._renderTx();
       setText('badge-tx', Store._transactions.length);
     }
-    
-    if (submitBtn) { 
-      submitBtn.disabled = false; 
-      submitBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg> Simpan Perubahan`; 
+
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg> Simpan Perubahan`;
     }
   },
 
@@ -1175,7 +1175,7 @@ const App = {
           turnoverBadge = `<span class="turnover-badge slow">${days}h</span>`;
         }
         const profitClass = (s.profit || 0) >= 0 ? 'profit-positive' : 'profit-negative';
-        
+
         let profitPct = '';
         if (s.hargaBeli > 0 && s.tanggalKeluar) {
           const pct = ((s.profit / s.hargaBeli) * 100).toFixed(1);
@@ -1370,11 +1370,11 @@ const App = {
       setText('sell-pv-beli', fmt(hargaBeli));
       setText('sell-pv-jual', fmt(hargaJual));
       const profitEl = el('sell-pv-profit');
-      if (profitEl) { 
+      if (profitEl) {
         let pct = '';
         if (hargaBeli > 0) pct = ` (${((profit / hargaBeli) * 100).toFixed(1)}%)`;
-        profitEl.textContent = fmt(profit) + pct; 
-        profitEl.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)'; 
+        profitEl.textContent = fmt(profit) + pct;
+        profitEl.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)';
       }
     } else { prev.classList.remove('show'); }
   },
@@ -1421,9 +1421,11 @@ const App = {
     // Disable tombol submit selama proses
     const submitBtn = el('input-form') ? el('input-form').querySelector('button[type="submit"]') : null;
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Menyimpan...'; }
-    await Store.addTx({ tanggal, deskripsi: el('f-desc').value.trim(), kategori: kat, kategoriRaw: kat,
+    await Store.addTx({
+      tanggal, deskripsi: el('f-desc').value.trim(), kategori: kat, kategoriRaw: kat,
       quantity: el('f-qty') ? el('f-qty').value.trim() : '',
-      uangMasuk: masuk, uangKeluar: keluar, saldo: newSaldo });
+      uangMasuk: masuk, uangKeluar: keluar, saldo: newSaldo
+    });
     if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Simpan Transaksi`; }
     setText('badge-tx', Store._transactions.length);
     toast('✅ Transaksi kas berhasil disimpan!', 'success');
@@ -1504,7 +1506,7 @@ const App = {
     const data = Store.getTx({ filter: this.tx.filter, kat: this.tx.kat, search: this.tx.search });
     if (!data.length) { toast('Tidak ada data untuk diexport.', 'error'); return; }
     const rows = [['Tanggal', 'Deskripsi', 'Kategori', 'Uang Masuk', 'Uang Keluar', 'Saldo', 'Qty'],
-      ...data.map(t => [t.tanggal, t.deskripsi, t.kategori, t.uangMasuk || 0, t.uangKeluar || 0, t.saldo || 0, t.quantity || ''])];
+    ...data.map(t => [t.tanggal, t.deskripsi, t.kategori, t.uangMasuk || 0, t.uangKeluar || 0, t.saldo || 0, t.quantity || ''])];
     this._downloadXLSX(rows, 'BukuBesar_KarimGadget');
   },
 
@@ -1512,14 +1514,14 @@ const App = {
     const data = Store.getSales({ filter: this.sales.filter, search: this.sales.search });
     if (!data.length) { toast('Tidak ada data penjualan.', 'error'); return; }
     const rows = [['Nota', 'Tgl Masuk', 'Tgl Terjual', 'Model', 'Harga Beli', 'Harga Jual', 'Profit', 'Waktu Putar', 'Keterangan'],
-      ...data.map(s => [s.nota, s.tanggalMasuk, s.tanggalKeluar, s.tipeModel || s.tipe, s.hargaBeli || 0, s.hargaJual || 0, s.profit || 0, s.turnoverDays, s.keterangan])];
+    ...data.map(s => [s.nota, s.tanggalMasuk, s.tanggalKeluar, s.tipeModel || s.tipe, s.hargaBeli || 0, s.hargaJual || 0, s.profit || 0, s.turnoverDays, s.keterangan])];
     this._downloadXLSX(rows, 'DataPenjualan_KarimGadget');
   },
 
   exportReportXLSX() {
     const months = Store.getMonthlyStats();
     const rows = [['Bulan', 'Jumlah Tx', 'Pemasukan', 'Pengeluaran', 'Saldo Akhir'],
-      ...months.map(m => [fmtYearMonth(m.bulan), m.count, m.masuk, m.keluar, m.saldo])];
+    ...months.map(m => [fmtYearMonth(m.bulan), m.count, m.masuk, m.keluar, m.saldo])];
     this._downloadXLSX(rows, 'Laporan_KarimGadget');
   },
 
