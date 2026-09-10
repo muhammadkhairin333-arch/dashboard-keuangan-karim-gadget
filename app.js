@@ -132,7 +132,6 @@ function filterLabel(filter) {
     sunday.setDate(monday.getDate() + 6);
     return `${fmtDateNum(monday.toISOString().split('T')[0])} - ${fmtDateNum(sunday.toISOString().split('T')[0])}`;
   }
-}
   if (filter.mode === 'custom') {
     const s = filter.start ? fmtDateNum(filter.start) : '–';
     const e = filter.end ? fmtDateNum(filter.end) : '–';
