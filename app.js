@@ -53,6 +53,46 @@ function applyCalendarFilter(arr, field, filter) {
     const val = item[field];
     if (!val || !isValidDate(val)) return false;
     const d = new Date(val + 'T00:00:00');
+    if (mode === 'hariini') {
+      const today = new Date().toISOString().split('T')[0];
+      return val === today;
+    }
+    if (mode === 'mingguini' || mode === 'minggulalu') {
+      const todayObj = new Date();
+      // Adjust start of week to Monday
+      const dayOfWeek = todayObj.getDay() || 7; 
+      const monday = new Date(todayObj);
+      monday.setDate(todayObj.getDate() - dayOfWeek + 1);
+      monday.setHours(0,0,0,0);
+      
+      const nextMonday = new Date(monday);
+      nextMonday.setDate(monday.getDate() + 7);
+      
+      const lastMonday = new Date(monday);
+      lastMonday.setDate(monday.getDate() - 7);
+      
+      const itemDate = new Date(val + 'T00:00:00');
+      if (mode === 'mingguini') return itemDate >= monday && itemDate < nextMonday;
+      if (mode === 'minggulalu') return itemDate >= lastMonday && itemDate < monday;
+    }
+    if (mode === 'hari') {
+      return val === filter.date;
+    }
+    if (mode === 'minggu') {
+      if (!filter.week) return true;
+      const [y, w] = filter.week.split('-W');
+      const year = parseInt(y);
+      const week = parseInt(w);
+      const simple = new Date(year, 0, 1 + (week - 1) * 7);
+      const dayOfWeek = simple.getDay() || 7;
+      const monday = new Date(simple);
+      monday.setDate(simple.getDate() - dayOfWeek + 1);
+      monday.setHours(0,0,0,0);
+      const nextMonday = new Date(monday);
+      nextMonday.setDate(monday.getDate() + 7);
+      const itemDate = new Date(val + 'T00:00:00');
+      return itemDate >= monday && itemDate < nextMonday;
+    }
     if (mode === 'bulan') return d.getFullYear() === parseInt(year) && d.getMonth() === parseInt(month) - 1;
     if (mode === 'tahun') return d.getFullYear() === parseInt(year);
     if (mode === 'custom') {
@@ -66,8 +106,13 @@ function applyCalendarFilter(arr, field, filter) {
 
 function filterLabel(filter) {
   if (!filter || filter.mode === 'semua') return 'Semua Waktu';
+  if (filter.mode === 'hariini') return 'Hari Ini';
+  if (filter.mode === 'mingguini') return 'Minggu Ini';
+  if (filter.mode === 'minggulalu') return 'Minggu Lalu';
   if (filter.mode === 'bulan') return fmtYearMonth(`${filter.year}-${String(filter.month).padStart(2, '0')}`);
   if (filter.mode === 'tahun') return `Tahun ${filter.year}`;
+  if (filter.mode === 'hari') return filter.date ? fmtDate(filter.date) : 'Per Hari';
+  if (filter.mode === 'minggu') return filter.week ? `Minggu ${filter.week.replace('-W', ' Ke-')}` : 'Per Minggu';
   if (filter.mode === 'custom') {
     const s = filter.start ? fmtDate(filter.start) : '–';
     const e = filter.end ? fmtDate(filter.end) : '–';
@@ -301,11 +346,23 @@ const Store = {
     }
   },
 
-  updateTx(id, updates) {
+  async updateTx(id, updates) {
     const idx = this._transactions.findIndex(t => t.id === id);
     if (idx === -1) return false;
-    this._transactions[idx] = { ...this._transactions[idx], ...updates };
+    const merged = { ...this._transactions[idx], ...updates };
+    this._transactions[idx] = merged;
     this._saveTxLocal();
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        redirect: 'follow',
+        body: JSON.stringify({ action: 'updateTransaction', id: id, data: merged })
+      });
+      const result = await res.json();
+      if (result.success) {
+         toast('✅ Transaksi berhasil diupdate di Google Sheets!', 'success');
+      }
+    } catch (e) { console.warn('[KG] Offline update tx — tersimpan lokal:', e.message); }
     return true;
   },
 
@@ -345,9 +402,8 @@ const Store = {
       if (!t.tanggal || !isValidDate(t.tanggal)) return;
       const key = t.tanggal.substr(0, 7);
       if (!months[key]) months[key] = { bulan: key, masuk: 0, keluar: 0, saldo: 0, count: 0 };
-      const kat = t.kategori;
-      if (kat === 'Penjualan Utama' || kat === 'Pendapatan Lainnya') months[key].masuk += t.uangMasuk || 0;
-      if (kat === 'HPP (Inventory)' || kat === 'Biaya Operasional' || kat === 'Biaya Bank & Admin') months[key].keluar += t.uangKeluar || 0;
+      months[key].masuk += t.uangMasuk || 0;
+      months[key].keluar += t.uangKeluar || 0;
       if (t.saldo) months[key].saldo = t.saldo;
       months[key].count++;
     });
@@ -362,9 +418,8 @@ const Store = {
       if (!t.tanggal || !isValidDate(t.tanggal)) return;
       const key = t.tanggal.substr(0, 4);
       if (!years[key]) years[key] = { tahun: key, masuk: 0, keluar: 0, saldo: 0, count: 0 };
-      const kat = t.kategori;
-      if (kat === 'Penjualan Utama' || kat === 'Pendapatan Lainnya') years[key].masuk += t.uangMasuk || 0;
-      if (kat === 'HPP (Inventory)' || kat === 'Biaya Operasional' || kat === 'Biaya Bank & Admin') years[key].keluar += t.uangKeluar || 0;
+      years[key].masuk += t.uangMasuk || 0;
+      years[key].keluar += t.uangKeluar || 0;
       if (t.saldo) years[key].saldo = t.saldo;
       years[key].count++;
     });
@@ -375,9 +430,8 @@ const Store = {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     let masuk = 0, keluar = 0;
     filtered.forEach(t => {
-      const kat = t.kategori;
-      if (kat === 'Penjualan Utama' || kat === 'Pendapatan Lainnya') masuk += t.uangMasuk || 0;
-      if (kat === 'HPP (Inventory)' || kat === 'Biaya Operasional' || kat === 'Biaya Bank & Admin') keluar += t.uangKeluar || 0;
+      masuk += t.uangMasuk || 0;
+      keluar += t.uangKeluar || 0;
     });
     return { masuk, keluar, profit: masuk - keluar, count: filtered.length };
   },
@@ -474,7 +528,11 @@ const Store = {
       merged.turnoverDays = days >= 0 ? days : null;
     }
     if (merged.hargaBeli != null && merged.hargaJual != null) {
-      merged.profit = (merged.hargaJual || 0) - (merged.hargaBeli || 0);
+      if (!merged.tanggalKeluar || (merged.hargaJual || 0) === 0) {
+        merged.profit = 0;
+      } else {
+        merged.profit = (merged.hargaJual || 0) - (merged.hargaBeli || 0);
+      }
     }
     merged.tipe = merged.tipeModel || merged.tipe || '';
     merged.tipeModel = merged.tipe;
@@ -531,6 +589,11 @@ const CalendarFilter = {
         <div class="cal-filter-row">
           <select class="cal-mode-sel form-select-sm" id="calf-${id}-mode" onchange="CalendarFilter.onModeChange('${id}')">
             ${showSemua ? '<option value="semua">Semua Waktu</option>' : ''}
+            <option value="hariini">Hari Ini</option>
+            <option value="mingguini">Minggu Ini</option>
+            <option value="minggulalu">Minggu Lalu</option>
+            <option value="hari">Per Hari</option>
+            <option value="minggu">Per Minggu</option>
             <option value="bulan">Per Bulan</option>
             <option value="tahun">Per Tahun</option>
             <option value="custom">Custom Range</option>
@@ -550,7 +613,7 @@ const CalendarFilter = {
     const curYear = now.getFullYear();
     const curMonth = now.getMonth() + 1;
 
-    if (mode === 'semua') {
+    if (mode === 'semua' || mode === 'hariini' || mode === 'mingguini' || mode === 'minggulalu') {
       extraEl.style.display = 'none';
       extraEl.innerHTML = '';
     } else if (mode === 'bulan') {
@@ -566,6 +629,17 @@ const CalendarFilter = {
       const yearOptions = yearList.map(y => `<option value="${y}" ${y == curYear ? 'selected' : ''}>${y}</option>`).join('');
       extraEl.innerHTML = `<select class="form-select-sm" id="calf-${id}-year" onchange="CalendarFilter.onParamChange('${id}')">${yearOptions}</select>`;
       extraEl.style.display = 'flex';
+    } else if (mode === 'hari') {
+      extraEl.innerHTML = `<input type="date" class="form-input-sm" id="calf-${id}-date" onchange="CalendarFilter.onParamChange('${id}')">`;
+      extraEl.style.display = 'flex';
+      if (el(`calf-${id}-date`)) el(`calf-${id}-date`).value = now.toISOString().split('T')[0];
+    } else if (mode === 'minggu') {
+      extraEl.innerHTML = `<input type="week" class="form-input-sm" id="calf-${id}-week" onchange="CalendarFilter.onParamChange('${id}')">`;
+      extraEl.style.display = 'flex';
+      const firstDayOfYear = new Date(curYear, 0, 1);
+      const pastDaysOfYear = (now - firstDayOfYear) / 86400000;
+      const weekNum = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+      if (el(`calf-${id}-week`)) el(`calf-${id}-week`).value = `${curYear}-W${weekNum.toString().padStart(2, '0')}`;
     } else if (mode === 'custom') {
       extraEl.innerHTML = `
         <input type="date" class="form-input-sm" id="calf-${id}-start" onchange="CalendarFilter.onParamChange('${id}')">
@@ -616,6 +690,10 @@ const CalendarFilter = {
       if (el(`calf-${id}-year`)) el(`calf-${id}-year`).value = filter.year;
     } else if (filter.mode === 'tahun') {
       if (el(`calf-${id}-year`)) el(`calf-${id}-year`).value = filter.year;
+    } else if (filter.mode === 'hari') {
+      if (el(`calf-${id}-date`)) el(`calf-${id}-date`).value = filter.date || '';
+    } else if (filter.mode === 'minggu') {
+      if (el(`calf-${id}-week`)) el(`calf-${id}-week`).value = filter.week || '';
     } else if (filter.mode === 'custom') {
       if (el(`calf-${id}-start`)) el(`calf-${id}-start`).value = filter.start || '';
       if (el(`calf-${id}-end`)) el(`calf-${id}-end`).value = filter.end || '';
@@ -676,8 +754,7 @@ const Charts = {
       type: 'line', data: {
         labels: months.map(m => m.bulan),
         datasets: [
-          { label: 'Saldo', data: months.map(m => m.saldo), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', borderWidth: 2.5, fill: true, tension: 0.35, pointRadius: 3 },
-          { label: 'Profit', data: months.map(m => m.profit), borderColor: '#f59e0b', borderDash: [5, 4], borderWidth: 2, tension: 0.35, pointRadius: 3 }
+          { label: 'Saldo', data: months.map(m => m.saldo), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', borderWidth: 2.5, fill: true, tension: 0.35, pointRadius: 3 }
         ]
       },
       options: { ...d, scales: this._scales() }
@@ -977,7 +1054,7 @@ const App = {
     } else {
       tbody.innerHTML = slice.map(t => `<tr>
         <td class="cell-date">${fmtDate(t.tanggal)}</td>
-        <td class="cell-desc">${t.deskripsi || '–'}</td>
+        <td class="cell-desc">${t.deskripsi || '–'}${t.quantity ? ` <span style="font-size:11px;color:var(--text-muted);background:var(--bg-input);padding:2px 6px;border-radius:4px;margin-left:6px;white-space:nowrap">Qty: ${t.quantity}</span>` : ''}</td>
         <td>${catBadge(t.kategori)}</td>
         <td class="cell-in">${t.uangMasuk ? fmt(t.uangMasuk) : '–'}</td>
         <td class="cell-out">${t.uangKeluar ? fmt(t.uangKeluar) : '–'}</td>
@@ -998,30 +1075,42 @@ const App = {
     if (!t) return;
     el('etx-id').value = id;
     el('etx-tanggal').value = t.tanggal || '';
+    el('etx-kategori').value = mapCategory(t.kategori);
     el('etx-desc').value = t.deskripsi || '';
-    el('etx-kategori').value = t.kategori || '';
-    el('etx-masuk').value = t.uangMasuk || 0;
+    if(el('etx-qty')) el('etx-qty').value = t.quantity || t.jumlah || '';
+    el('etx-masuk').value = t.uangMasuk || '';
     el('etx-keluar').value = t.uangKeluar || 0;
     el('etx-saldo').value = t.saldo || 0;
     openModal('modal-edit-tx');
   },
 
-  saveTxEdit() {
+  async saveTxEdit() {
     const id = el('etx-id').value;
     const updates = {
       tanggal: el('etx-tanggal').value,
-      deskripsi: el('etx-desc').value.trim(),
       kategori: el('etx-kategori').value,
-      kategoriRaw: el('etx-kategori').value,
+      deskripsi: el('etx-desc').value.trim(),
+      quantity: el('etx-qty') ? el('etx-qty').value.trim() : '',
       uangMasuk: parseFloat(el('etx-masuk').value) || 0,
       uangKeluar: parseFloat(el('etx-keluar').value) || 0,
       saldo: parseFloat(el('etx-saldo').value) || 0,
     };
-    if (Store.updateTx(id, updates)) {
+    
+    // Disable tombol saat menyimpan
+    const submitBtn = el('modal-edit-tx').querySelector('.btn-primary');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Menyimpan...'; }
+
+    const success = await Store.updateTx(id, updates);
+    if (success) {
       toast('Transaksi berhasil diupdate!', 'success');
       closeModal('modal-edit-tx');
       this._renderTx();
       setText('badge-tx', Store._transactions.length);
+    }
+    
+    if (submitBtn) { 
+      submitBtn.disabled = false; 
+      submitBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg> Simpan Perubahan`; 
     }
   },
 
@@ -1052,10 +1141,12 @@ const App = {
       }
     });
     const avgTurnover = turnoverCount ? Math.round(turnoverSum / turnoverCount) : null;
+    const marginProfit = tOmset > 0 ? ((tProfit / tOmset) * 100).toFixed(1) : 0;
 
     setText('sales-kpi-unit', `${sold.length} / ${data.length}`);
     setText('sales-kpi-revenue', fmt(tOmset));
     setText('sales-kpi-total-profit', fmt(tProfit));
+    setText('sales-kpi-margin', `${marginProfit}%`);
     setText('sales-kpi-avg-profit', fmt(sold.length ? Math.round(tProfit / sold.length) : 0));
     setText('sales-kpi-turnover', avgTurnover != null ? `${avgTurnover} hari` : '– hari');
 
@@ -1084,6 +1175,15 @@ const App = {
           turnoverBadge = `<span class="turnover-badge slow">${days}h</span>`;
         }
         const profitClass = (s.profit || 0) >= 0 ? 'profit-positive' : 'profit-negative';
+        
+        let profitPct = '';
+        if (s.hargaBeli > 0 && s.tanggalKeluar) {
+          const pct = ((s.profit / s.hargaBeli) * 100).toFixed(1);
+          const color = s.profit >= 0 ? '#059669' : '#dc2626';
+          const bg = s.profit >= 0 ? '#d1fae5' : '#fee2e2';
+          profitPct = `<div style="font-size:11px;color:${color};background:${bg};padding:2px 4px;border-radius:4px;display:inline-block;margin-top:2px;font-weight:600">${pct}%</div>`;
+        }
+
         const statusBadge = s.tanggalKeluar
           ? '<span class="status-badge sold">Terjual</span>'
           : '<span class="status-badge stok">Stok</span>';
@@ -1094,7 +1194,7 @@ const App = {
           <td class="cell-desc" style="max-width:220px">${s.tipeModel || s.tipe || '–'}</td>
           <td class="cell-money expense">${fmt(s.hargaBeli)}</td>
           <td class="cell-money income">${fmt(s.hargaJual)}</td>
-          <td class="cell-money ${profitClass}">${fmt(s.profit)}</td>
+          <td class="cell-money ${profitClass}" style="line-height:1.2">${fmt(s.profit)}<br>${profitPct}</td>
           <td>${turnoverBadge}</td>
           <td style="color:var(--text-muted);font-size:12px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.keterangan || '–'}</td>
           <td class="cell-action">
@@ -1131,7 +1231,9 @@ const App = {
     const profit = jual - beli;
     const profitEl = el('es-profit-preview');
     if (profitEl) {
-      profitEl.textContent = fmt(profit);
+      let pct = '';
+      if (beli > 0) pct = ` (${((profit / beli) * 100).toFixed(1)}%)`;
+      profitEl.textContent = fmt(profit) + pct;
       profitEl.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)';
     }
   },
@@ -1268,7 +1370,12 @@ const App = {
       setText('sell-pv-beli', fmt(hargaBeli));
       setText('sell-pv-jual', fmt(hargaJual));
       const profitEl = el('sell-pv-profit');
-      if (profitEl) { profitEl.textContent = fmt(profit); profitEl.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)'; }
+      if (profitEl) { 
+        let pct = '';
+        if (hargaBeli > 0) pct = ` (${((profit / hargaBeli) * 100).toFixed(1)}%)`;
+        profitEl.textContent = fmt(profit) + pct; 
+        profitEl.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)'; 
+      }
     } else { prev.classList.remove('show'); }
   },
 
@@ -1285,6 +1392,7 @@ const App = {
 
   quickFill(desc, kat, masuk, keluar) {
     if (el('f-desc')) el('f-desc').value = desc;
+    if (el('f-qty')) el('f-qty').value = '';
     if (el('f-kategori')) el('f-kategori').value = kat;
     this._updateMoneyFields();
     if (masuk > 0 && el('f-masuk')) el('f-masuk').value = masuk;
@@ -1313,7 +1421,9 @@ const App = {
     // Disable tombol submit selama proses
     const submitBtn = el('input-form') ? el('input-form').querySelector('button[type="submit"]') : null;
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Menyimpan...'; }
-    await Store.addTx({ tanggal, deskripsi: el('f-desc').value.trim(), kategori: kat, kategoriRaw: kat, uangMasuk: masuk, uangKeluar: keluar, saldo: newSaldo });
+    await Store.addTx({ tanggal, deskripsi: el('f-desc').value.trim(), kategori: kat, kategoriRaw: kat,
+      quantity: el('f-qty') ? el('f-qty').value.trim() : '',
+      uangMasuk: masuk, uangKeluar: keluar, saldo: newSaldo });
     if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Simpan Transaksi`; }
     setText('badge-tx', Store._transactions.length);
     toast('✅ Transaksi kas berhasil disimpan!', 'success');
@@ -1366,7 +1476,6 @@ const App = {
 
     const months = Store.getMonthlyStats();
     Charts.renderMonthlyBars(months);
-    Charts.renderProfitTrend(months);
 
     const tbody = el('monthly-tbody');
     if (tbody) {
@@ -1375,7 +1484,6 @@ const App = {
         <td class="cell-mono">${m.count}</td>
         <td class="cell-in">${fmt(m.masuk)}</td>
         <td class="cell-out">${fmt(m.keluar)}</td>
-        <td class="cell-profit">${fmt(m.profit)}</td>
         <td class="cell-saldo">${fmt(m.saldo)}</td>
       </tr>`).join('');
     }
@@ -1395,8 +1503,8 @@ const App = {
   exportTx() {
     const data = Store.getTx({ filter: this.tx.filter, kat: this.tx.kat, search: this.tx.search });
     if (!data.length) { toast('Tidak ada data untuk diexport.', 'error'); return; }
-    const rows = [['Tanggal', 'Deskripsi', 'Kategori', 'Uang Masuk', 'Uang Keluar', 'Saldo'],
-      ...data.map(t => [t.tanggal, t.deskripsi, t.kategori, t.uangMasuk || 0, t.uangKeluar || 0, t.saldo || 0])];
+    const rows = [['Tanggal', 'Deskripsi', 'Kategori', 'Uang Masuk', 'Uang Keluar', 'Saldo', 'Qty'],
+      ...data.map(t => [t.tanggal, t.deskripsi, t.kategori, t.uangMasuk || 0, t.uangKeluar || 0, t.saldo || 0, t.quantity || ''])];
     this._downloadXLSX(rows, 'BukuBesar_KarimGadget');
   },
 
@@ -1410,15 +1518,15 @@ const App = {
 
   exportReportXLSX() {
     const months = Store.getMonthlyStats();
-    const rows = [['Bulan', 'Jumlah Tx', 'Pemasukan', 'Pengeluaran', 'Profit', 'Saldo Akhir'],
-      ...months.map(m => [fmtYearMonth(m.bulan), m.count, m.masuk, m.keluar, m.profit, m.saldo])];
+    const rows = [['Bulan', 'Jumlah Tx', 'Pemasukan', 'Pengeluaran', 'Saldo Akhir'],
+      ...months.map(m => [fmtYearMonth(m.bulan), m.count, m.masuk, m.keluar, m.saldo])];
     this._downloadXLSX(rows, 'Laporan_KarimGadget');
   },
 
   exportReportCSV() {
     const months = Store.getMonthlyStats();
-    const header = ['Bulan', 'Jumlah Tx', 'Pemasukan', 'Pengeluaran', 'Profit', 'Saldo Akhir'];
-    const rows = months.map(m => [fmtYearMonth(m.bulan), m.count, m.masuk, m.keluar, m.profit, m.saldo]);
+    const header = ['Bulan', 'Jumlah Tx', 'Pemasukan', 'Pengeluaran', 'Saldo Akhir'];
+    const rows = months.map(m => [fmtYearMonth(m.bulan), m.count, m.masuk, m.keluar, m.saldo]);
     const csv = [header, ...rows].map(r => r.join(',')).join('\n');
     const a = document.createElement('a');
     a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
