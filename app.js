@@ -406,12 +406,16 @@ const Store = {
     }
   },
 
-  getLatestSaldo() {
-    const sorted = [...this._transactions]
-      .filter(t => t.saldo && isValidDate(t.tanggal))
-      .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-    if (!sorted.length) return 0;
-    return sorted[sorted.length - 1].saldo;
+  getLatestSaldo(filter) {
+    if (!filter || filter.mode === 'semua') {
+      const sorted = [...this._transactions].filter(t => t.saldo && isValidDate(t.tanggal)).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+      return sorted.length ? sorted[sorted.length - 1].saldo : 0;
+    }
+    const filtered = applyCalendarFilter([...this._transactions], 'tanggal', filter).filter(t => t.saldo != null).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+    if (filtered.length) return filtered[filtered.length - 1].saldo;
+    
+    const sorted = [...this._transactions].filter(t => t.saldo && isValidDate(t.tanggal)).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+    return sorted.length ? sorted[sorted.length - 1].saldo : 0;
   },
 
   getDescriptions() {
@@ -432,6 +436,29 @@ const Store = {
     return Object.values(months)
       .sort((a, b) => a.bulan.localeCompare(b.bulan))
       .map(m => ({ ...m, profit: m.masuk - m.keluar }));
+  },
+
+  getTrendStats(filter) {
+    const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
+    const mode = (filter || {}).mode || 'semua';
+    const groupByDay = ['hari', 'minggu', 'bulan', 'custom'].includes(mode);
+
+    const map = {};
+    filtered.forEach(t => {
+      if (!t.tanggal || !isValidDate(t.tanggal)) return;
+      const key = groupByDay ? t.tanggal : t.tanggal.substr(0, 7);
+      if (!map[key]) map[key] = { label: groupByDay ? fmtDateNum(key) : fmtYearMonth(key), masuk: 0, keluar: 0, count: 0 };
+      map[key].masuk += t.uangMasuk || 0;
+      map[key].keluar += t.uangKeluar || 0;
+      map[key].count++;
+    });
+    return Object.keys(map).sort().map(k => ({
+      bulan: map[k].label,
+      profit: map[k].masuk - map[k].keluar,
+      masuk: map[k].masuk,
+      keluar: map[k].keluar,
+      count: map[k].count
+    }));
   },
 
   getYearlyStats() {
@@ -467,9 +494,11 @@ const Store = {
     return cats;
   },
 
-  getTopProducts(limit = 7) {
+  getTopProducts(limit = 7, filter = null) {
     const map = {};
-    this._sales.forEach(s => {
+    const filteredSales = applyCalendarFilter(this._sales, 'tanggalKeluar', filter || { mode: 'semua' });
+    filteredSales.forEach(s => {
+      if (!s.tanggalKeluar) return;
       const name = s.tipeModel || s.tipe || '';
       if (!name) return;
       const k = name.replace(/\s*(iBox|Inter|inter|ibox)\s*/gi, ' ').replace(/\s*\(.*?\)\s*/g, '').trim();
@@ -953,10 +982,10 @@ const App = {
 
   // ---- Overview ----
   _renderOverview() {
-    const saldo = Store.getLatestSaldo();
+    const filter = this.overview.filter;
+    const saldo = Store.getLatestSaldo(filter);
     setText('kpi-saldo', fmt(saldo));
 
-    const filter = this.overview.filter;
     const stats = Store.getStatsByFilter(filter);
     const label = filterLabel(filter);
     setText('ov-period', label);
@@ -986,12 +1015,12 @@ const App = {
       setText('kpi-keluar-sub', '–');
     }
 
-    const months = Store.getMonthlyStats();
-    Charts.renderTrend(months);
+    const trendData = Store.getTrendStats(filter);
+    Charts.renderTrend(trendData);
     Charts.renderDonut(Store.getCategorySpend(filter));
-    Charts.renderTopProducts(Store.getTopProducts());
+    Charts.renderTopProducts(Store.getTopProducts(7, filter));
 
-    const recent = Store.getTx({ sortDir: 'desc' }).slice(0, 8);
+    const recent = Store.getTx({ filter, sortDir: 'desc' }).slice(0, 8);
     const wrap = el('recent-tx-wrap');
     if (wrap) {
       if (!recent.length) {
