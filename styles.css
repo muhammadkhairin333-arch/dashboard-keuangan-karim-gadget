@@ -1154,7 +1154,7 @@ body::before {
 /* ============ Sales Page ============ */
 .sales-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-md);
   margin-bottom: var(--space-xl);
 }
@@ -1919,25 +1919,30 @@ body::before {
   white-space: nowrap;
   text-align: center;
 }
-.btn-icon-edit,
+.btn-icon-edit {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.15s;
+  line-height: 1;
+}
+.btn-icon-edit:hover { background: rgba(59,130,246,0.12); }
+
 .btn-icon-del {
   background: none;
   border: none;
+  font-size: 16px;
   cursor: pointer;
-  font-size: 15px;
   padding: 4px 6px;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
+  border-radius: 6px;
+  transition: background 0.15s;
   line-height: 1;
+  opacity: 0.6;
 }
-.btn-icon-edit:hover {
-  background: rgba(37, 99, 235, 0.1);
-  transform: scale(1.1);
-}
-.btn-icon-del:hover {
-  background: rgba(220, 38, 38, 0.1);
-  transform: scale(1.1);
-}
+.btn-icon-del:hover { background: rgba(239,68,68,0.15); opacity: 1; }
 
 /* ---- Status Badge for Sales ---- */
 .status-badge {
@@ -2070,26 +2075,28 @@ body::before {
 /* ---- Responsive Updates ---- */
 @media (max-width: 768px) {
   .period-pills { width: 100%; }
-  .input-tabs { gap: 6px; }
-  .input-tab-btn { padding: 10px 14px; font-size: 12px; }
-  .modal-box { max-width: 100%; border-radius: var(--radius-lg); }
+  .input-tabs { gap: 6px; flex-wrap: wrap; }
+  .input-tab-btn { padding: 10px 14px; font-size: 12px; flex: 1; min-width: 0; }
+  .modal-box { max-width: 100%; border-radius: var(--radius-lg); margin: 0 8px; }
   .modal-header, .modal-body, .modal-footer { padding-left: 16px; padding-right: 16px; }
 
-  /* Bottom Navigation Bar */
+  /* Bottom Navigation Bar & Header padding */
+  .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 999; }
+  .app-container { padding-top: 76px; }
   .navbar-menu {
     display: flex !important;
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.97);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid var(--border-subtle);
-    padding: 8px 10px 16px 10px;
+    padding: 6px 4px env(safe-area-inset-bottom, 10px) 4px;
     justify-content: space-around;
     align-items: flex-end;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.05);
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.07);
     z-index: 999;
     flex-direction: row;
     width: auto;
@@ -2099,59 +2106,219 @@ body::before {
   
   .nav-link {
     flex-direction: column;
-    gap: 4px;
-    padding: 8px 4px;
+    gap: 3px;
+    padding: 6px 2px;
     font-size: 10px;
     border-radius: 8px;
     flex: 1;
+    min-width: 0;
     text-align: center;
     background: transparent !important;
     color: var(--text-tertiary);
     position: relative;
+    overflow: hidden;
+  }
+  
+  .nav-link span:not(.nav-badge) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    display: block;
   }
   
   .nav-link.active { color: var(--accent-blue); }
   
   .nav-link svg {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
     margin: 0 auto;
   }
   
   .nav-badge {
     position: absolute;
     top: 0px;
-    right: calc(50% - 20px);
+    right: calc(50% - 18px);
     margin: 0;
-    padding: 2px 5px;
+    padding: 2px 4px;
     font-size: 9px;
   }
   
-  /* Body Padding to prevent overlap */
-  body { padding-bottom: 70px; }
+  /* Body Padding to prevent overlap with bottom nav */
+  body { padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
   .main-content {
-    padding: var(--space-sm) var(--space-sm) 80px var(--space-sm) !important;
-    padding-top: 16px !important;
+    padding: 12px 10px calc(84px + env(safe-area-inset-bottom, 0px)) 10px !important;
   }
-  
-  /* Grids to 2-col on mobile (more compact) */
+
+  /* ---- Page header compact ---- */
+  .page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+  .page-header > div:last-child {
+    width: 100%;
+  }
+
+  /* ---- KPI Cards ---- */
   .report-kpi-grid, .kpi-grid {
     grid-template-columns: 1fr 1fr !important;
-    gap: 10px;
+    gap: 8px;
   }
+  .kpi-card { padding: 14px 12px; }
+  .kpi-value { font-size: 18px; }
   .sales-kpi-grid {
     grid-template-columns: 1fr 1fr !important;
-    gap: 10px;
+    gap: 8px;
   }
+  .sales-kpi-card { padding: 12px; }
+  .sales-kpi-value { font-size: 16px; }
   
-  /* Force single col for complex grids */
+  /* ---- Charts single col ---- */
   .charts-equal, .charts-2col {
     grid-template-columns: 1fr !important;
   }
-  
-  /* Table improvements for mobile */
+
+  /* ---- Filter bar ---- */
+  .filter-bar-v2 {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .filter-bar-v2 > * {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .cal-filter-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .cal-filter-extra {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .search-input-wrapper {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  #ov-filter-wrap {
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  /* ---- Tables: horizontal scroll ---- */
+  .table-wrap, .data-table-wrapper {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .data-table {
+    min-width: 560px;
+  }
+  /* Sales table has more columns */
+  #sales-table-body ~ table,
+  .data-table-wrapper .data-table {
+    min-width: 720px;
+  }
   .data-table th, .data-table td {
-    padding: 10px 12px;
+    padding: 9px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .cell-desc {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ---- Quick Stats row ---- */
+  .quick-stats {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px;
+  }
+
+  /* ---- Form grid single col on mobile ---- */
+  .form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+  }
+  .form-grid .span2 {
+    grid-column: span 1 !important;
+  }
+  .form-wrap .card {
+    padding: 16px !important;
+  }
+
+  /* ---- Shortcuts chips wrap ---- */
+  .shortcut-chips {
+    gap: 6px;
+  }
+  .chip {
+    font-size: 12px;
+    padding: 7px 12px;
+  }
+
+  /* ---- Table card header ---- */
+  .table-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  /* ---- Btn group wrap ---- */
+  .btn-group {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ---- Card header wrap ---- */
+  .card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ---- Report KPI grid ---- */
+  .report-kpi-grid-2 {
+    grid-template-columns: 1fr !important;
+    gap: 8px;
+  }
+
+  /* ---- Calendar filter label hidden on small ---- */
+  .cal-filter-label { display: none; }
+
+  /* ---- Saldo display ---- */
+  .saldo-display {
+    grid-column: span 1 !important;
+  }
+
+  /* ---- Table footer ---- */
+  .card-footer, .table-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  /* ---- Pagination ---- */
+  .pagination {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .pg-btn {
+    min-width: 30px;
+    height: 30px;
     font-size: 12px;
   }
+
+  /* ---- Page title ---- */
+  .page-title { font-size: 20px; }
+  .page-subtitle { font-size: 12px; }
+}
+
+/* Extra small screens */
+@media (max-width: 380px) {
+  .input-tab-btn { padding: 8px 8px; font-size: 11px; }
+  .kpi-value { font-size: 15px; }
+  .sales-kpi-value { font-size: 14px; }
+  .nav-link span:not(.nav-badge) { font-size: 9px; }
+  .main-content { padding-left: 8px !important; padding-right: 8px !important; }
 }
