@@ -106,7 +106,13 @@
       </div>
 
       <div class="chart-card" style="margin-bottom:20px;animation-delay:200ms">
-        <div class="chart-title">🏆 Top Produk Terjual (Profit Kontribusi)</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div class="chart-title" style="margin-bottom:0;" id="title-topproduct">🏆 Top Produk Terjual</div>
+          <select id="topproduct-mode" class="form-select" style="width:auto; padding:6px 30px 6px 12px; font-size:12px; height:auto; background-color:var(--bg-primary); border-color:var(--border-light);" onchange="App._renderOverview()">
+            <option value="profit">Berdasarkan Profit</option>
+            <option value="count">Berdasarkan Jumlah Terjual</option>
+          </select>
+        </div>
         <div class="chart-h260"><canvas id="chart-topproduct"></canvas></div>
       </div>
 
