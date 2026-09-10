@@ -185,12 +185,13 @@ const Store = {
       if (data && (data.transactions || data.sales)) {
         let skipped = 0;
         // Proses data dari Google Sheets
-        const gsTx = (data.transactions || []).map(t => {
+        const gsTx = (data.transactions || []).map((t, i) => {
           const tanggal = t.tanggal || '';
           const validTanggal = isValidDate(tanggal) ? tanggal : null;
-          if (!validTanggal) skipped++;
+          if (!validTanggal && (t.deskripsi || t.uangMasuk || t.uangKeluar)) skipped++;
           return {
             ...t,
+            sheetIndex: i,
             id: t.id || Math.random().toString(36).substr(2, 8),
             tanggal: validTanggal,
             kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''),
@@ -220,6 +221,7 @@ const Store = {
           return {
             ...s,
             id: s.nota || s.id || Math.random().toString(36).substr(2, 8),
+            notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10),
             tipe: s.tipeModel || s.tipe || '',
             tipeModel: s.tipeModel || s.tipe || '',
             tanggalMasuk: validMasuk,
@@ -254,12 +256,11 @@ const Store = {
         this._invalidDates = 0;
       } else {
         const rawInitTx = typeof INITIAL_DATA !== 'undefined' ? (Array.isArray(INITIAL_DATA) ? INITIAL_DATA : (INITIAL_DATA.transactions || [])) : [];
-        let skipped = 0;
-        this._transactions = rawInitTx.map(t => {
+        this._transactions = rawInitTx.map((t, i) => {
           const tanggal = t.tanggal || '';
           const validTanggal = isValidDate(tanggal) ? tanggal : null;
-          if (!validTanggal) skipped++;
-          return { ...t, id: t.id || Math.random().toString(36).substr(2, 8), tanggal: validTanggal, kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''), kategoriRaw: t.kategori || '' };
+          if (!validTanggal && (t.deskripsi || t.uangMasuk || t.uangKeluar)) skipped++;
+          return { ...t, sheetIndex: i, id: t.id || Math.random().toString(36).substr(2, 8), tanggal: validTanggal, kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''), kategoriRaw: t.kategori || '' };
         }).filter(t => t.tanggal !== null);
         this._invalidDates = skipped;
       }
@@ -275,7 +276,7 @@ const Store = {
             const days = Math.round((new Date(validKeluar + 'T00:00:00') - new Date(validMasuk + 'T00:00:00')) / 86400000);
             turnoverDays = days >= 0 ? days : null;
           }
-          return { ...s, id: s.id || Math.random().toString(36).substr(2, 8), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
+          return { ...s, id: s.id || Math.random().toString(36).substr(2, 8), notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
         });
       }
     }
@@ -313,6 +314,9 @@ const Store = {
     }
     r.sort((a, b) => {
       let va = a[sortBy], vb = b[sortBy];
+      if (va === vb && a.sheetIndex !== undefined && b.sheetIndex !== undefined) {
+         return sortDir === 'asc' ? a.sheetIndex - b.sheetIndex : b.sheetIndex - a.sheetIndex;
+      }
       if (typeof va === 'string') return sortDir === 'asc' ? va.localeCompare(vb || '') : (vb || '').localeCompare(va);
       return sortDir === 'asc' ? (va || 0) - (vb || 0) : (vb || 0) - (va || 0);
     });
@@ -321,6 +325,7 @@ const Store = {
 
   async addTx(tx) {
     tx.id = Math.random().toString(36).substr(2, 8);
+    tx.sheetIndex = Date.now();
     this._transactions.push(tx);
     this._transactions.sort((a, b) => (a.tanggal || '').localeCompare(b.tanggal || ''));
     // Simpan ke localStorage agar tidak hilang saat refresh
@@ -470,6 +475,9 @@ const Store = {
     }
     r.sort((a, b) => {
       let va = a[sortBy], vb = b[sortBy];
+      if (va === vb && a.notaNum !== undefined && b.notaNum !== undefined) {
+         return sortDir === 'asc' ? a.notaNum - b.notaNum : b.notaNum - a.notaNum;
+      }
       if (!va && !vb) return 0;
       if (!va) return sortDir === 'asc' ? 1 : -1;
       if (!vb) return sortDir === 'asc' ? -1 : 1;
@@ -499,6 +507,7 @@ const Store = {
 
   async addSale(sale) {
     sale.id = sale.nota || Math.random().toString(36).substr(2, 8);
+    sale.notaNum = isNaN(parseInt(sale.nota, 10)) ? 0 : parseInt(sale.nota, 10);
     this._sales.push(sale);
     this._saveSalesLocal();
     // Tandai sebagai pending
@@ -866,7 +875,7 @@ function closeModal(id) {
 // ============ APP CONTROLLER ============
 const App = {
   tx: { filter: { mode: 'semua' }, kat: '', search: '', sortBy: 'tanggal', sortDir: 'desc', page: 1 },
-  sales: { filter: { mode: 'semua' }, search: '', sortBy: 'tanggalMasuk', sortDir: 'desc', page: 1 },
+  sales: { filter: { mode: 'semua' }, search: '', sortBy: 'notaNum', sortDir: 'desc', page: 1 },
   overview: { filter: { mode: 'bulan', year: String(new Date().getFullYear()), month: new Date().getMonth() + 1 } },
   laporan: { filter: { mode: 'semua' } },
   inputTab: 'kas',
