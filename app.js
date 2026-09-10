@@ -265,16 +265,7 @@ const Store = {
         });
 
         // Hitung Saldo secara berurutan agar 100% sinkron dan akurat (mengatasi rumus Google Sheet yang mungkin kosong/error)
-        let currentSaldo = 0;
-        this._transactions.forEach((t, i) => {
-          // Jika baris pertama memiliki saldo awal yang diinput manual, gunakan itu
-          if (i === 0 && t.saldo && !t.uangMasuk && !t.uangKeluar) {
-            currentSaldo = parseFloat(t.saldo);
-          } else {
-            currentSaldo += (t.uangMasuk || 0) - (t.uangKeluar || 0);
-          }
-          t.calcSaldo = currentSaldo;
-        });
+        this._recalcAllSaldo();
 
         this._saveTxLocal();
 
@@ -397,6 +388,7 @@ const Store = {
     tx.sheetIndex = Date.now();
     this._transactions.push(tx);
     this._transactions.sort((a, b) => (a.tanggal || '').localeCompare(b.tanggal || ''));
+    this._recalcAllSaldo();
     // Simpan ke localStorage agar tidak hilang saat refresh
     this._saveTxLocal();
     // Tandai sebagai pending
@@ -425,6 +417,8 @@ const Store = {
     if (idx === -1) return false;
     const merged = { ...this._transactions[idx], ...updates };
     this._transactions[idx] = merged;
+    this._transactions.sort((a, b) => (a.tanggal || '').localeCompare(b.tanggal || ''));
+    this._recalcAllSaldo();
     this._saveTxLocal();
     try {
       const res = await fetch(API_URL, {
@@ -443,6 +437,7 @@ const Store = {
   deleteTx(id) {
     const tx = this._transactions.find(t => t.id === id);
     this._transactions = this._transactions.filter(t => t.id !== id);
+    this._recalcAllSaldo();
     this._saveTxLocal();
     if (tx) {
       // Hapus dari pending queue jika ada
@@ -458,15 +453,23 @@ const Store = {
     }
   },
 
+  _recalcAllSaldo() {
+    let currentSaldo = 0;
+    this._transactions.forEach((t, i) => {
+      // Jika baris pertama memiliki saldo awal yang diinput manual, gunakan itu
+      if (i === 0 && t.saldo != null && !t.uangMasuk && !t.uangKeluar) {
+        currentSaldo = parseFloat(t.saldo) || 0;
+      } else {
+        currentSaldo += (parseFloat(t.uangMasuk) || 0) - (parseFloat(t.uangKeluar) || 0);
+      }
+      t.calcSaldo = currentSaldo;
+      t.saldo = currentSaldo; // Keep t.saldo in sync for table display
+    });
+  },
+
   getLatestSaldo() {
-    const valid = this._transactions.filter(t => t.saldo != null);
-    if (!valid.length) return 0;
-    
-    let latest = valid[0];
-    for (const t of valid) {
-      if ((t.sheetIndex || 0) >= (latest.sheetIndex || 0)) latest = t;
-    }
-    return latest.saldo;
+    if (!this._transactions.length) return 0;
+    return this._transactions[this._transactions.length - 1].calcSaldo || 0;
   },
 
   getDescriptions() {
@@ -1024,7 +1027,11 @@ const Charts = {
         let pctStr = '0%';
         if (total > 0) {
            const calcPct = (val / total) * 100;
-           if (calcPct > 0) pctStr = parseFloat(calcPct.toFixed(6)) + '%';
+           if (calcPct > 0 && calcPct < 1) {
+             pctStr = '<1%';
+           } else if (calcPct >= 1) {
+             pctStr = parseFloat(calcPct.toFixed(1)) + '%';
+           }
         }
         
         const item = document.createElement('div');
@@ -1094,7 +1101,11 @@ const Charts = {
         let pctStr = '0%';
         if (total > 0) {
            const calcPct = (val / total) * 100;
-           if (calcPct > 0) pctStr = parseFloat(calcPct.toFixed(6)) + '%';
+           if (calcPct > 0 && calcPct < 1) {
+             pctStr = '<1%';
+           } else if (calcPct >= 1) {
+             pctStr = parseFloat(calcPct.toFixed(1)) + '%';
+           }
         }
         
         const item = document.createElement('div');
@@ -1128,7 +1139,12 @@ const Charts = {
         afterLabel: c => {
           const p = products[c.dataIndex];
           if (!p.detailList || (p.detailList.length <= 1 && p.detailList[0].nm === 'Lainnya')) return '';
-          return p.detailList.map(dt => `  • ${dt.nm}: ${mode === 'count' ? dt.count + 'x' : fmt(dt.profit)}`);
+          const maxList = 5;
+          const displayList = p.detailList.slice(0, maxList).map(dt => `  • ${dt.nm}: ${mode === 'count' ? dt.count + 'x' : fmt(dt.profit)}`);
+          if (p.detailList.length > maxList) {
+            displayList.push(`  • dan ${p.detailList.length - maxList} lainnya...`);
+          }
+          return displayList;
         }
       } 
     });
