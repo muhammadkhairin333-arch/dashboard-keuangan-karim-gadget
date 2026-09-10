@@ -1,1713 +1,647 @@
-/* ====================================
-   KARIM GADGET — Dashboard V3.2
-   Application Logic (app.js)
-   ==================================== */
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Dashboard Keuangan & Penjualan Karim Gadget — Monitoring transaksi, data penjualan HP, laporan keuangan, dan input transaksi harian.">
+  <title>Karim Gadget — Dashboard Keuangan & Penjualan</title>
+  <link rel="stylesheet" href="styles.css?v=3.3.1">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="data/initial-data.js"></script>
+</head>
+<body>
+<div class="app-container">
 
-'use strict';
-
-// ============ UTILITIES ============
-const fmt = (n) => {
-  if (n == null || isNaN(n)) return 'Rp 0';
-  const abs = Math.abs(n);
-  return (n < 0 ? '-' : '') + 'Rp ' + new Intl.NumberFormat('id-ID').format(abs);
-};
-const fmtShort = (n) => {
-  if (n == null) return 'Rp 0';
-  const abs = Math.abs(n), sign = n < 0 ? '-' : '';
-  if (abs >= 1e9) return sign + 'Rp ' + (abs / 1e9).toFixed(1) + 'M';
-  if (abs >= 1e6) return sign + 'Rp ' + (abs / 1e6).toFixed(1) + 'jt';
-  if (abs >= 1e3) return sign + 'Rp ' + (abs / 1e3).toFixed(0) + 'rb';
-  return fmt(n);
-};
-const fmtDate = (s) => {
-  if (!s) return '–';
-  try { return new Date(s + (s.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }); }
-  catch { return s; }
-};
-const fmtDateNum = (s) => {
-  if (!s) return '–';
-  try {
-    const d = new Date(s + (s.length === 10 ? 'T00:00:00' : ''));
-    if (isNaN(d)) return s;
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-  } catch { return s; }
-};
-const el = (id) => document.getElementById(id);
-const setText = (id, v) => { const e = el(id); if (e) e.textContent = v; };
-
-const API_URL = 'https://script.google.com/macros/s/AKfycbxgw5ZDN4wqNWkVSZKl2pQv7AhcT6UppW0V80I7vbxtcYXKmzH9L85V-CfFihKFtfnX/exec';
-
-const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-const BULAN_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-
-// Validate tanggal format YYYY-MM-DD
-const isValidDate = (s) => {
-  if (!s || typeof s !== 'string') return false;
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T00:00:00').getTime());
-};
-
-// Format YYYY-MM to "Agustus 2026"
-const fmtYearMonth = (ym) => {
-  if (!ym) return '–';
-  const [y, m] = ym.split('-');
-  return `${BULAN_ID[parseInt(m, 10) - 1]} ${y}`;
-};
-
-// ============ CALENDAR FILTER HELPER ============
-function applyCalendarFilter(arr, field, filter) {
-  const { mode, year, month, start, end } = filter || {};
-  if (!mode || mode === 'semua') return arr;
-  return arr.filter(item => {
-    const val = item[field];
-    if (!val || !isValidDate(val)) return false;
-    const d = new Date(val + 'T00:00:00');
-    if (mode === 'hariini') {
-      const today = new Date().toISOString().split('T')[0];
-      return val === today;
-    }
-    if (mode === 'mingguini' || mode === 'minggulalu') {
-      const todayObj = new Date();
-      // Adjust start of week to Monday
-      const dayOfWeek = todayObj.getDay() || 7;
-      const monday = new Date(todayObj);
-      monday.setDate(todayObj.getDate() - dayOfWeek + 1);
-      monday.setHours(0, 0, 0, 0);
-
-      const nextMonday = new Date(monday);
-      nextMonday.setDate(monday.getDate() + 7);
-
-      const lastMonday = new Date(monday);
-      lastMonday.setDate(monday.getDate() - 7);
-
-      const itemDate = new Date(val + 'T00:00:00');
-      if (mode === 'mingguini') return itemDate >= monday && itemDate < nextMonday;
-      if (mode === 'minggulalu') return itemDate >= lastMonday && itemDate < monday;
-    }
-    if (mode === 'hari') {
-      if (!filter.date) return false;
-      return val === filter.date;
-    }
-    if (mode === 'minggu') {
-      if (!filter.week) return false;
-      const [y, w] = filter.week.split('-W');
-      const year = parseInt(y);
-      const week = parseInt(w);
-      const simple = new Date(year, 0, 1 + (week - 1) * 7);
-      const dayOfWeek = simple.getDay() || 7;
-      const monday = new Date(simple);
-      monday.setDate(simple.getDate() - dayOfWeek + 1);
-      monday.setHours(0, 0, 0, 0);
-      const nextMonday = new Date(monday);
-      nextMonday.setDate(monday.getDate() + 7);
-      const itemDate = new Date(val + 'T00:00:00');
-      return itemDate >= monday && itemDate < nextMonday;
-    }
-    if (mode === 'bulan') return d.getFullYear() === parseInt(year) && d.getMonth() === parseInt(month) - 1;
-    if (mode === 'tahun') return d.getFullYear() === parseInt(year);
-    if (mode === 'custom') {
-      if (!start && !end) return false;
-      const from = start ? new Date(start + 'T00:00:00') : new Date('2000-01-01');
-      const to = end ? new Date(end + 'T23:59:59') : new Date('2099-12-31');
-      return d >= from && d <= to;
-    }
-    return true;
-  });
-}
-
-function filterLabel(filter) {
-  if (!filter || filter.mode === 'semua') return 'Semua Waktu';
-  if (filter.mode === 'bulan') return fmtYearMonth(`${filter.year}-${String(filter.month).padStart(2, '0')}`);
-  if (filter.mode === 'tahun') return `Tahun ${filter.year}`;
-  if (filter.mode === 'hari') return filter.date ? fmtDateNum(filter.date) : 'Per Hari';
-  if (filter.mode === 'minggu') {
-    if (!filter.week) return 'Per Minggu';
-    const [y, w] = filter.week.split('-W');
-    const year = parseInt(y);
-    const week = parseInt(w);
-    const simple = new Date(year, 0, 1 + (week - 1) * 7);
-    const dayOfWeek = simple.getDay() || 7;
-    const monday = new Date(simple);
-    monday.setDate(simple.getDate() - dayOfWeek + 1);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    return `${fmtDateNum(monday.toISOString().split('T')[0])} - ${fmtDateNum(sunday.toISOString().split('T')[0])}`;
-  }
-  if (filter.mode === 'custom') {
-    const s = filter.start ? fmtDateNum(filter.start) : '–';
-    const e = filter.end ? fmtDateNum(filter.end) : '–';
-    return `${s} - ${e}`;
-  }
-  return 'Semua Waktu';
-}
-
-function getPrevFilter(f) {
-  if (f.mode === 'hari') {
-    if (!f.date) return null;
-    const d = new Date(f.date + 'T00:00:00');
-    d.setDate(d.getDate() - 1);
-    return { mode: 'hari', date: d.toISOString().split('T')[0] };
-  }
-  if (f.mode === 'minggu') {
-    if (!f.week) return null;
-    const [y, w] = f.week.split('-W');
-    let year = parseInt(y), week = parseInt(w);
-    week -= 1;
-    if (week < 1) { year -= 1; week = 52; }
-    return { mode: 'minggu', week: `${year}-W${String(week).padStart(2, '0')}` };
-  }
-  if (f.mode === 'bulan') {
-    let y = parseInt(f.year), m = parseInt(f.month);
-    m -= 1;
-    if (m < 1) { y -= 1; m = 12; }
-    return { mode: 'bulan', year: String(y), month: m };
-  }
-  if (f.mode === 'tahun') {
-    if (!f.year) return null;
-    return { mode: 'tahun', year: String(parseInt(f.year) - 1) };
-  }
-  if (f.mode === 'custom') {
-    if (!f.start || !f.end) return null;
-    const s = new Date(f.start + 'T00:00:00');
-    const e = new Date(f.end + 'T00:00:00');
-    const diff = e - s;
-    const prevE = new Date(s.getTime() - 86400000);
-    const prevS = new Date(prevE.getTime() - diff);
-    return { mode: 'custom', start: prevS.toISOString().split('T')[0], end: prevE.toISOString().split('T')[0] };
-  }
-  return null;
-}
-
-function getAvailableYears(arr, field) {
-  const years = new Set();
-  arr.forEach(item => {
-    const v = item[field];
-    if (isValidDate(v)) years.add(v.substr(0, 4));
-  });
-  return [...years].sort((a, b) => b - a);
-}
-
-// ============ CATEGORY MAPPER ============
-function mapCategory(raw = '', desc = '') {
-  const k = raw.trim();
-  const d = (desc || '').toLowerCase();
-  
-  if (k === 'Penjualan Utama' || k === 'Pendapatan Lainnya' || k === 'Pendapatan') {
-    if (/iphone|ipad|jual|pelunasan|dp|tablet|laptop|aksesoris|samsung|xiaomi|oppo|vivo|realme/.test(d) || k === 'Penjualan Utama') return 'Penjualan Utama';
-    return 'Pendapatan Lainnya';
-  }
-  if (k === 'HPP (Inventory)' || k === 'Inventory' || k === 'Invenroty') return 'Inventory';
-  if (k === 'Biaya Operasional' || k === 'Operasional' || k === 'Expenses') return 'Operasional';
-  if (k === 'Biaya Bank & Admin' || k === 'Expensess' || k === 'Biaya Bank') return 'Expensess';
-  if (k === 'Ekuitas & Aset' || k === 'Ekuitas' || k === 'Deviden' || k === 'Investasi' || k === 'Equity') return 'Ekuitas';
-  return k || 'Lainnya';
-}
-
-const BADGE_CLASS = {
-  'Penjualan Utama': 'badge badge-penjualan',
-  'Pendapatan Lainnya': 'badge badge-lainnya',
-  'Inventory': 'badge badge-hpp',
-  'Operasional': 'badge badge-operasional',
-  'Expensess': 'badge badge-bank',
-  'Ekuitas': 'badge badge-ekuitas',
-};
-function catBadge(kat) {
-  const cls = BADGE_CLASS[kat] || 'badge badge-bank';
-  return `<span class="${cls}"><span class="dot"></span>${kat}</span>`;
-}
-
-// ============ DATA STORE ============
-const Store = {
-  _transactions: [],
-  _sales: [],
-  _invalidDates: 0,
-
-  async init() {
-    toast('⏳ Menghubungkan ke Google Sheets...', 'info');
-    let loaded = false;
-
-    try {
-      const res = await fetch(API_URL, { redirect: 'follow' });
-      if (!res.ok) throw new Error('HTTP error: ' + res.status);
-      const data = await res.json();
-
-      if (data && (data.transactions || data.sales)) {
-        let skipped = 0;
-        // Proses data dari Google Sheets
-        const gsTx = (data.transactions || []).map((t, i) => {
-          const tanggal = t.tanggal || '';
-          const validTanggal = isValidDate(tanggal) ? tanggal : null;
-          if (!validTanggal && (t.deskripsi || t.uangMasuk || t.uangKeluar)) skipped++;
-          return {
-            ...t,
-            sheetIndex: i,
-            id: t.id || Math.random().toString(36).substr(2, 8),
-            tanggal: validTanggal,
-            kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''),
-            kategoriRaw: t.kategori || ''
-          };
-        }).filter(t => t.tanggal !== null);
-        this._invalidDates = skipped;
-
-        // Merge pending transaksi yang belum dikonfirmasi GAS
-        const pendingTx = this._getPendingTx();
-        this._transactions = [...gsTx];
-        pendingTx.forEach(p => {
-          if (!this._transactions.find(t => t.id === p.id)) this._transactions.push(p);
-        });
-        this._transactions.sort((a, b) => (a.tanggal || '').localeCompare(b.tanggal || ''));
-        this._saveTxLocal();
-
-        // Proses data penjualan
-        const gsSales = (data.sales || []).map(s => {
-          const validMasuk = isValidDate(s.tanggalMasuk) ? s.tanggalMasuk : null;
-          const validKeluar = isValidDate(s.tanggalKeluar) ? s.tanggalKeluar : null;
-          let turnoverDays = null;
-          if (validMasuk && validKeluar) {
-            const days = Math.round((new Date(validKeluar + 'T00:00:00') - new Date(validMasuk + 'T00:00:00')) / 86400000);
-            turnoverDays = days >= 0 ? days : null;
-          }
-          return {
-            ...s,
-            id: s.nota || s.id || Math.random().toString(36).substr(2, 8),
-            notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10),
-            tipe: s.tipeModel || s.tipe || '',
-            tipeModel: s.tipeModel || s.tipe || '',
-            tanggalMasuk: validMasuk,
-            tanggalKeluar: validKeluar,
-            turnoverDays
-          };
-        });
-
-        // Merge pending sales yang belum dikonfirmasi
-        const pendingSales = this._getPendingSales();
-        this._sales = [...gsSales];
-        pendingSales.forEach(p => {
-          if (!this._sales.find(s => s.nota === p.nota)) this._sales.push(p);
-        });
-        this._saveSalesLocal();
-
-        loaded = true;
-        toast('✅ Tersinkronisasi dengan Google Sheets!', 'success');
-      }
-    } catch (e) {
-      console.warn('[KG] Gagal fetch dari Google Sheets:', e.message);
-    }
-
-    // Fallback: load dari localStorage cache, lalu INITIAL_DATA
-    if (!loaded) {
-      toast('📴 Offline — memuat data tersimpan...', 'error');
-      const cachedTx = localStorage.getItem('kg_tx_cache');
-      const cachedSales = localStorage.getItem('kg_sales_cache');
-
-      if (cachedTx) {
-        try { this._transactions = JSON.parse(cachedTx); } catch { this._transactions = []; }
-        this._invalidDates = 0;
-      } else {
-        const rawInitTx = typeof INITIAL_DATA !== 'undefined' ? (Array.isArray(INITIAL_DATA) ? INITIAL_DATA : (INITIAL_DATA.transactions || [])) : [];
-        this._transactions = rawInitTx.map((t, i) => {
-          const tanggal = t.tanggal || '';
-          const validTanggal = isValidDate(tanggal) ? tanggal : null;
-          if (!validTanggal && (t.deskripsi || t.uangMasuk || t.uangKeluar)) skipped++;
-          return { ...t, sheetIndex: i, id: t.id || Math.random().toString(36).substr(2, 8), tanggal: validTanggal, kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''), kategoriRaw: t.kategori || '' };
-        }).filter(t => t.tanggal !== null);
-        this._invalidDates = skipped;
-      }
-
-      if (cachedSales) {
-        try { this._sales = JSON.parse(cachedSales); } catch { this._sales = []; }
-      } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.sales) {
-        this._sales = INITIAL_DATA.sales.map(s => {
-          const validMasuk = isValidDate(s.tanggalMasuk) ? s.tanggalMasuk : null;
-          const validKeluar = isValidDate(s.tanggalKeluar) ? s.tanggalKeluar : null;
-          let turnoverDays = null;
-          if (validMasuk && validKeluar) {
-            const days = Math.round((new Date(validKeluar + 'T00:00:00') - new Date(validMasuk + 'T00:00:00')) / 86400000);
-            turnoverDays = days >= 0 ? days : null;
-          }
-          return { ...s, id: s.id || Math.random().toString(36).substr(2, 8), notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
-        });
-      }
-    }
-  },
-
-  // ---- Local Storage — Transaksi Kas ----
-  _saveTxLocal() {
-    try { localStorage.setItem('kg_tx_cache', JSON.stringify(this._transactions)); } catch (e) { }
-  },
-  _getPendingTx() {
-    try { return JSON.parse(localStorage.getItem('kg_pending_tx') || '[]'); } catch { return []; }
-  },
-  _setPendingTx(list) {
-    try { localStorage.setItem('kg_pending_tx', JSON.stringify(list)); } catch (e) { }
-  },
-
-  // ---- Local Storage — Penjualan ----
-  _saveSalesLocal() {
-    try { localStorage.setItem('kg_sales_cache', JSON.stringify(this._sales)); } catch (e) { }
-  },
-  _getPendingSales() {
-    try { return JSON.parse(localStorage.getItem('kg_pending_sales') || '[]'); } catch { return []; }
-  },
-  _setPendingSales(list) {
-    try { localStorage.setItem('kg_pending_sales', JSON.stringify(list)); } catch (e) { }
-  },
-
-  // ---- Transaction Methods ----
-  getTx({ filter = null, kat = '', search = '', sortBy = 'tanggal', sortDir = 'desc' } = {}) {
-    let r = filter ? applyCalendarFilter(this._transactions, 'tanggal', filter) : [...this._transactions];
-    if (kat) r = r.filter(t => t.kategori === kat);
-    if (search) {
-      const q = search.toLowerCase();
-      r = r.filter(t => (t.deskripsi || '').toLowerCase().includes(q));
-    }
-    r.sort((a, b) => {
-      let va = a[sortBy], vb = b[sortBy];
-      if (va === vb && a.sheetIndex !== undefined && b.sheetIndex !== undefined) {
-         return sortDir === 'asc' ? a.sheetIndex - b.sheetIndex : b.sheetIndex - a.sheetIndex;
-      }
-      if (typeof va === 'string') return sortDir === 'asc' ? va.localeCompare(vb || '') : (vb || '').localeCompare(va);
-      return sortDir === 'asc' ? (va || 0) - (vb || 0) : (vb || 0) - (va || 0);
-    });
-    return r;
-  },
-
-  async addTx(tx) {
-    tx.id = Math.random().toString(36).substr(2, 8);
-    tx.sheetIndex = Date.now();
-    this._transactions.push(tx);
-    this._transactions.sort((a, b) => (a.tanggal || '').localeCompare(b.tanggal || ''));
-    // Simpan ke localStorage agar tidak hilang saat refresh
-    this._saveTxLocal();
-    // Tandai sebagai pending
-    const pending = this._getPendingTx();
-    pending.push(tx);
-    this._setPendingTx(pending);
-    // Kirim ke Google Sheets
-    try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        redirect: 'follow',
-        body: JSON.stringify({ action: 'addTransaction', data: tx })
-      });
-      const result = await res.json();
-      if (result.success) {
-        // Hapus dari pending setelah berhasil
-        this._setPendingTx(this._getPendingTx().filter(p => p.id !== tx.id));
-      }
-    } catch (e) {
-      console.warn('[KG] Offline — transaksi tersimpan lokal:', e.message);
-    }
-  },
-
-  async updateTx(id, updates) {
-    const idx = this._transactions.findIndex(t => t.id === id);
-    if (idx === -1) return false;
-    const merged = { ...this._transactions[idx], ...updates };
-    this._transactions[idx] = merged;
-    this._saveTxLocal();
-    try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        redirect: 'follow',
-        body: JSON.stringify({ action: 'updateTransaction', id: id, data: merged })
-      });
-      const result = await res.json();
-      if (result.success) {
-        toast('✅ Transaksi berhasil diupdate di Google Sheets!', 'success');
-      }
-    } catch (e) { console.warn('[KG] Offline update tx — tersimpan lokal:', e.message); }
-    return true;
-  },
-
-  deleteTx(id) {
-    const tx = this._transactions.find(t => t.id === id);
-    this._transactions = this._transactions.filter(t => t.id !== id);
-    this._saveTxLocal();
-    if (tx) {
-      // Hapus dari pending queue jika ada
-      this._setPendingTx(this._getPendingTx().filter(p => p.id !== id));
-      // Kirim request hapus ke Google Sheets
-      try {
-        fetch(API_URL, {
-          method: 'POST',
-          redirect: 'follow',
-          body: JSON.stringify({ action: 'deleteTransaction', id: tx.id, tanggal: tx.tanggal, deskripsi: tx.deskripsi })
-        });
-      } catch (e) { console.warn('[KG] Gagal hapus tx dari GS:', e.message); }
-    }
-  },
-
-  getLatestSaldo() {
-    const valid = this._transactions.filter(t => t.saldo != null);
-    if (!valid.length) return 0;
-    
-    let latest = valid[0];
-    for (const t of valid) {
-      if ((t.sheetIndex || 0) >= (latest.sheetIndex || 0)) latest = t;
-    }
-    return latest.saldo;
-  },
-
-  getDescriptions() {
-    return [...new Set(this._transactions.map(t => t.deskripsi).filter(Boolean))].sort();
-  },
-
-  getMonthlyStats() {
-    const months = {};
-    this._transactions.forEach(t => {
-      if (!t.tanggal || !isValidDate(t.tanggal)) return;
-      const key = t.tanggal.substr(0, 7);
-      if (!months[key]) months[key] = { bulan: key, masuk: 0, keluar: 0, saldo: 0, count: 0 };
-      months[key].masuk += t.uangMasuk || 0;
-      months[key].keluar += t.uangKeluar || 0;
-      if (t.saldo) months[key].saldo = t.saldo;
-      months[key].count++;
-    });
-    return Object.values(months)
-      .sort((a, b) => a.bulan.localeCompare(b.bulan))
-      .map(m => ({ ...m, profit: m.masuk - m.keluar }));
-  },
-
-  getTrendStats(filter) {
-    const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
-    const mode = (filter || {}).mode || 'semua';
-    const groupByDay = ['hari', 'minggu', 'bulan', 'custom'].includes(mode);
-
-    const map = {};
-    filtered.forEach(t => {
-      if (!t.tanggal || !isValidDate(t.tanggal)) return;
-      const key = groupByDay ? t.tanggal : t.tanggal.substr(0, 7);
-      if (!map[key]) map[key] = { label: groupByDay ? fmtDateNum(key) : fmtYearMonth(key), masuk: 0, keluar: 0, count: 0, saldo: 0 };
-      map[key].masuk += t.uangMasuk || 0;
-      map[key].keluar += t.uangKeluar || 0;
-      if (t.saldo != null) map[key].saldo = t.saldo;
-      map[key].count++;
-    });
-    return Object.keys(map).sort().map(k => ({
-      bulan: map[k].label,
-      profit: map[k].masuk - map[k].keluar,
-      masuk: map[k].masuk,
-      keluar: map[k].keluar,
-      saldo: map[k].saldo,
-      count: map[k].count
-    }));
-  },
-
-  getYearlyStats() {
-    const years = {};
-    this._transactions.forEach(t => {
-      if (!t.tanggal || !isValidDate(t.tanggal)) return;
-      const key = t.tanggal.substr(0, 4);
-      if (!years[key]) years[key] = { tahun: key, masuk: 0, keluar: 0, saldo: 0, count: 0 };
-      years[key].masuk += t.uangMasuk || 0;
-      years[key].keluar += t.uangKeluar || 0;
-      if (t.saldo) years[key].saldo = t.saldo;
-      years[key].count++;
-    });
-    return Object.values(years).sort((a, b) => a.tahun.localeCompare(b.tahun)).map(y => ({ ...y, profit: y.masuk - y.keluar }));
-  },
-
-  getStatsByFilter(filter) {
-    const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
-    let masuk = 0, keluar = 0, countMasuk = 0, countKeluar = 0;
-    filtered.forEach(t => {
-      if ((t.uangMasuk || 0) > 0) { masuk += t.uangMasuk; countMasuk++; }
-      if ((t.uangKeluar || 0) > 0) { keluar += t.uangKeluar; countKeluar++; }
-    });
-    return { masuk, keluar, profit: masuk - keluar, count: filtered.length, countMasuk, countKeluar };
-  },
-
-  getCategorySpend(filter) {
-    const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
-    const cats = {};
-    const validExpense = ['Inventory', 'Operasional', 'Expensess', 'Ekuitas'];
-    filtered.forEach(t => {
-      if ((t.uangKeluar || 0) > 0) {
-        const k = validExpense.includes(t.kategori) ? t.kategori : 'Lainnya';
-        cats[k] = (cats[k] || 0) + t.uangKeluar;
-      }
-    });
-    return cats;
-  },
-
-  getIncomeSpend(filter) {
-    const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
-    const cats = {};
-    const validIncome = ['Penjualan Utama', 'Pendapatan Lainnya', 'Ekuitas'];
-    filtered.forEach(t => {
-      if ((t.uangMasuk || 0) > 0) {
-        const k = validIncome.includes(t.kategori) ? t.kategori : 'Lainnya';
-        cats[k] = (cats[k] || 0) + t.uangMasuk;
-      }
-    });
-    return cats;
-  },
-
-  getTopProducts(limit = 7, filter = null) {
-    const map = {};
-    const filteredSales = applyCalendarFilter(this._sales, 'tanggalKeluar', filter || { mode: 'semua' });
-    filteredSales.forEach(s => {
-      if (!s.tanggalKeluar) return;
-      const name = s.tipeModel || s.tipe || '';
-      if (!name) return;
-      const k = name.replace(/\s*(iBox|Inter|inter|ibox)\s*/gi, ' ').replace(/\s*\(.*?\)\s*/g, '').trim();
-      if (!map[k]) map[k] = { name: k, profit: 0, count: 0 };
-      map[k].profit += s.profit || 0;
-      map[k].count++;
-    });
-    return Object.values(map).sort((a, b) => b.profit - a.profit).slice(0, limit);
-  },
-
-  getLifetimeTotals() { return this.getStatsByFilter({ mode: 'semua' }); },
-
-  // ---- Sales Methods ----
-  getSales({ filter = null, search = '', sortBy = 'tanggalMasuk', sortDir = 'desc' } = {}) {
-    let r = filter ? applyCalendarFilter(this._sales, 'tanggalMasuk', filter) : [...this._sales];
-    if (!filter || filter.mode === 'semua') r = [...this._sales];
-    if (search) {
-      const q = search.toLowerCase();
-      r = r.filter(s => (s.tipeModel || s.tipe || '').toLowerCase().includes(q) || (s.nota || '').toLowerCase().includes(q));
-    }
-    r.sort((a, b) => {
-      let va = a[sortBy], vb = b[sortBy];
-      if (va === vb && a.notaNum !== undefined && b.notaNum !== undefined) {
-         return sortDir === 'asc' ? a.notaNum - b.notaNum : b.notaNum - a.notaNum;
-      }
-      if (!va && !vb) return 0;
-      if (!va) return sortDir === 'asc' ? 1 : -1;
-      if (!vb) return sortDir === 'asc' ? -1 : 1;
-      if (typeof va === 'string') return sortDir === 'asc' ? va.localeCompare(vb || '') : (vb || '').localeCompare(va);
-      return sortDir === 'asc' ? (va || 0) - (vb || 0) : (vb || 0) - (va || 0);
-    });
-    return r;
-  },
-
-  getSalesByFilter(filter, dateField = 'tanggalKeluar') {
-    if (!filter || filter.mode === 'semua') return [...this._sales];
-    return applyCalendarFilter(this._sales, dateField, filter);
-  },
-
-  getUnsoldUnits() {
-    return this._sales.filter(s => !s.tanggalKeluar || s.hargaJual === 0);
-  },
-
-  getNextNota() {
-    let max = 0;
-    this._sales.forEach(s => {
-      const n = parseInt(s.nota);
-      if (!isNaN(n) && n > max) max = n;
-    });
-    return max + 1;
-  },
-
-  async addSale(sale) {
-    sale.id = sale.nota || Math.random().toString(36).substr(2, 8);
-    sale.notaNum = isNaN(parseInt(sale.nota, 10)) ? 0 : parseInt(sale.nota, 10);
-    this._sales.push(sale);
-    this._saveSalesLocal();
-    // Tandai sebagai pending
-    const pending = this._getPendingSales();
-    pending.push(sale);
-    this._setPendingSales(pending);
-    try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        redirect: 'follow',
-        body: JSON.stringify({ action: 'addSale', data: sale })
-      });
-      const result = await res.json();
-      if (result.success) {
-        this._setPendingSales(this._getPendingSales().filter(p => p.nota !== sale.nota));
-        toast('✅ Unit tersimpan ke Google Sheets!', 'success');
-      }
-    } catch (e) { console.warn('[KG] Offline — sale tersimpan lokal:', e.message); }
-  },
-
-  async updateSale(id, updates) {
-    const idx = this._sales.findIndex(s => s.id === id);
-    if (idx === -1) return false;
-    const merged = { ...this._sales[idx], ...updates };
-    if (merged.tanggalMasuk && merged.tanggalKeluar && isValidDate(merged.tanggalMasuk) && isValidDate(merged.tanggalKeluar)) {
-      const days = Math.round((new Date(merged.tanggalKeluar + 'T00:00:00') - new Date(merged.tanggalMasuk + 'T00:00:00')) / 86400000);
-      merged.turnoverDays = days >= 0 ? days : null;
-    }
-    if (merged.hargaBeli != null && merged.hargaJual != null) {
-      if (!merged.tanggalKeluar || (merged.hargaJual || 0) === 0) {
-        merged.profit = 0;
-      } else {
-        merged.profit = (merged.hargaJual || 0) - (merged.hargaBeli || 0);
-      }
-    }
-    merged.tipe = merged.tipeModel || merged.tipe || '';
-    merged.tipeModel = merged.tipe;
-    this._sales[idx] = merged;
-    this._saveSalesLocal();
-    try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        redirect: 'follow',
-        body: JSON.stringify({ action: 'updateSale', nota: merged.nota, data: updates })
-      });
-      const result = await res.json();
-      if (result.success) toast('✅ Data penjualan diperbarui di Google Sheets!', 'success');
-    } catch (e) { console.warn('[KG] Offline update sale — tersimpan lokal:', e.message); }
-    return true;
-  },
-
-  async deleteSale(id) {
-    const sale = this._sales.find(s => s.id === id);
-    if (!sale) return false;
-    this._sales = this._sales.filter(s => s.id !== id);
-    this._saveSalesLocal();
-    // Hapus dari pending jika ada
-    this._setPendingSales(this._getPendingSales().filter(p => p.nota !== sale.nota));
-    try {
-      fetch(API_URL, {
-        method: 'POST',
-        redirect: 'follow',
-        body: JSON.stringify({ action: 'deleteSale', nota: sale.nota })
-      });
-    } catch (e) { console.warn('[KG] Gagal hapus sale dari GS:', e.message); }
-    return true;
-  },
-
-  getSaleById(id) { return this._sales.find(s => s.id === id); },
-  getTxById(id) { return this._transactions.find(t => t.id === id); },
-
-  getAvailableTxYears() { return getAvailableYears(this._transactions, 'tanggal'); },
-  getAvailableSalesYears() {
-    const all = [
-      ...getAvailableYears(this._sales, 'tanggalMasuk'),
-      ...getAvailableYears(this._sales, 'tanggalKeluar'),
-    ];
-    return [...new Set(all)].sort((a, b) => b - a);
-  },
-};
-
-// ============ CALENDAR FILTER WIDGET ============
-const CalendarFilter = {
-  buildHTML(id, opts = {}) {
-    const { showSemua = true } = opts;
-    return `
-      <div class="cal-filter" id="calf-${id}">
-        <div class="cal-filter-row">
-          <select class="cal-mode-sel form-select-sm" id="calf-${id}-mode" onchange="CalendarFilter.onModeChange('${id}')">
-            ${showSemua ? '<option value="semua">Semua Waktu</option>' : ''}
-            <option value="hari">Hari</option>
-            <option value="minggu">Minggu</option>
-            <option value="bulan">Bulan</option>
-            <option value="tahun">Tahun</option>
-            <option value="custom">Custom</option>
-          </select>
-          <span class="cal-filter-label" id="calf-${id}-label">Semua Waktu</span>
+  <!-- ===================== NAVBAR ===================== -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="#" class="navbar-brand" onclick="App.go('overview'); return false;">
+        <img src="Logo baru.jpeg" alt="Logo Karim Gadget" class="brand-logo" />
+        <div class="brand-text">
+          <span class="brand-name">Karim Gadget</span>
+          <span class="brand-sub">Financial Dashboard</span>
         </div>
-        <div class="cal-filter-extra" id="calf-${id}-extra" style="display:none"></div>
-      </div>`;
-  },
-
-  onModeChange(id) {
-    const modeEl = el(`calf-${id}-mode`);
-    if (!modeEl) return;
-    const mode = modeEl.value;
-    const extraEl = el(`calf-${id}-extra`);
-    const now = new Date();
-    const curYear = now.getFullYear();
-    const curMonth = now.getMonth() + 1;
-
-    if (mode === 'semua') {
-      extraEl.style.display = 'none';
-      extraEl.innerHTML = '';
-    } else if (mode === 'bulan') {
-      const monthOptions = BULAN_ID.map((n, i) => `<option value="${i + 1}" ${i + 1 === curMonth ? 'selected' : ''}>${n}</option>`).join('');
-      const yearList = this._getYearsForId(id);
-      const yearOptions = yearList.map(y => `<option value="${y}" ${y == curYear ? 'selected' : ''}>${y}</option>`).join('');
-      extraEl.innerHTML = `
-        <select class="form-select-sm" id="calf-${id}-month" onchange="CalendarFilter.onParamChange('${id}')">${monthOptions}</select>
-        <select class="form-select-sm" id="calf-${id}-year" onchange="CalendarFilter.onParamChange('${id}')">${yearOptions}</select>`;
-      extraEl.style.display = 'flex';
-    } else if (mode === 'tahun') {
-      const yearList = this._getYearsForId(id);
-      const yearOptions = yearList.map(y => `<option value="${y}" ${y == curYear ? 'selected' : ''}>${y}</option>`).join('');
-      extraEl.innerHTML = `<select class="form-select-sm" id="calf-${id}-year" onchange="CalendarFilter.onParamChange('${id}')">${yearOptions}</select>`;
-      extraEl.style.display = 'flex';
-    } else if (mode === 'hari') {
-      extraEl.innerHTML = `<input type="date" class="form-input-sm" id="calf-${id}-date" onchange="CalendarFilter.onParamChange('${id}')">`;
-      extraEl.style.display = 'flex';
-      if (el(`calf-${id}-date`)) el(`calf-${id}-date`).value = now.toISOString().split('T')[0];
-    } else if (mode === 'minggu') {
-      extraEl.innerHTML = `<input type="week" class="form-input-sm" id="calf-${id}-week" onchange="CalendarFilter.onParamChange('${id}')">`;
-      extraEl.style.display = 'flex';
-      const firstDayOfYear = new Date(curYear, 0, 1);
-      const pastDaysOfYear = (now - firstDayOfYear) / 86400000;
-      const weekNum = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-      if (el(`calf-${id}-week`)) el(`calf-${id}-week`).value = `${curYear}-W${weekNum.toString().padStart(2, '0')}`;
-    } else if (mode === 'custom') {
-      extraEl.innerHTML = `
-        <input type="date" class="form-input-sm" id="calf-${id}-start" onchange="CalendarFilter.onParamChange('${id}')">
-        <span style="color:var(--text-muted);font-size:13px">→</span>
-        <input type="date" class="form-input-sm" id="calf-${id}-end" onchange="CalendarFilter.onParamChange('${id}')">`;
-      extraEl.style.display = 'flex';
-    }
-
-    this.onParamChange(id);
-  },
-
-  onParamChange(id) {
-    const filter = this.getFilter(id);
-    const labelEl = el(`calf-${id}-label`);
-    if (labelEl) labelEl.textContent = filterLabel(filter);
-    if (this._callbacks[id]) this._callbacks[id](filter);
-  },
-
-  getFilter(id) {
-    const modeEl = el(`calf-${id}-mode`);
-    if (!modeEl) return { mode: 'semua' };
-    const mode = modeEl.value;
-    if (mode === 'semua') return { mode: 'semua' };
-    if (mode === 'bulan') {
-      const month = el(`calf-${id}-month`) ? parseInt(el(`calf-${id}-month`).value) : new Date().getMonth() + 1;
-      const year = el(`calf-${id}-year`) ? el(`calf-${id}-year`).value : String(new Date().getFullYear());
-      return { mode: 'bulan', year, month };
-    }
-    if (mode === 'tahun') {
-      const year = el(`calf-${id}-year`) ? el(`calf-${id}-year`).value : String(new Date().getFullYear());
-      return { mode: 'tahun', year };
-    }
-    if (mode === 'hari') {
-      const date = el(`calf-${id}-date`) ? el(`calf-${id}-date`).value : '';
-      return { mode: 'hari', date };
-    }
-    if (mode === 'minggu') {
-      const week = el(`calf-${id}-week`) ? el(`calf-${id}-week`).value : '';
-      return { mode: 'minggu', week };
-    }
-    if (mode === 'custom') {
-      const start = el(`calf-${id}-start`) ? el(`calf-${id}-start`).value : '';
-      const end = el(`calf-${id}-end`) ? el(`calf-${id}-end`).value : '';
-      return { mode: 'custom', start, end };
-    }
-    return { mode: 'semua' };
-  },
-
-  setFilter(id, filter) {
-    const modeEl = el(`calf-${id}-mode`);
-    if (!modeEl) return;
-    modeEl.value = filter.mode || 'semua';
-    this.onModeChange(id);
-    if (filter.mode === 'bulan') {
-      if (el(`calf-${id}-month`)) el(`calf-${id}-month`).value = filter.month;
-      if (el(`calf-${id}-year`)) el(`calf-${id}-year`).value = filter.year;
-    } else if (filter.mode === 'tahun') {
-      if (el(`calf-${id}-year`)) el(`calf-${id}-year`).value = filter.year;
-    } else if (filter.mode === 'hari') {
-      if (el(`calf-${id}-date`)) el(`calf-${id}-date`).value = filter.date || '';
-    } else if (filter.mode === 'minggu') {
-      if (el(`calf-${id}-week`)) el(`calf-${id}-week`).value = filter.week || '';
-    } else if (filter.mode === 'custom') {
-      if (el(`calf-${id}-start`)) el(`calf-${id}-start`).value = filter.start || '';
-      if (el(`calf-${id}-end`)) el(`calf-${id}-end`).value = filter.end || '';
-    }
-    const labelEl = el(`calf-${id}-label`);
-    if (labelEl) labelEl.textContent = filterLabel(filter);
-  },
-
-  _callbacks: {},
-  _yearSources: {},
-
-  register(id, callback, yearSource) {
-    this._callbacks[id] = callback;
-    this._yearSources[id] = yearSource || (() => [new Date().getFullYear().toString()]);
-  },
-
-  _getYearsForId(id) {
-    if (this._yearSources[id]) return this._yearSources[id]();
-    return [String(new Date().getFullYear())];
-  },
-};
-
-// ============ CHART MANAGER ============
-const Charts = {
-  _c: {},
-  destroy(k) { if (this._c[k]) { this._c[k].destroy(); delete this._c[k]; } },
-
-  _defaults(tooltipExtra = {}) {
-    return {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        tooltip: {
-          backgroundColor: 'rgba(15,23,42,0.92)',
-          titleFont: { family: 'Inter', weight: '700', size: 12 },
-          bodyFont: { family: 'JetBrains Mono', size: 12 },
-          padding: 12, cornerRadius: 8,
-          ...tooltipExtra,
-        },
-        legend: {
-          labels: { font: { family: 'Inter', size: 11 }, padding: 14, usePointStyle: true }
-        }
-      }
-    };
-  },
-  _scales(gridColor = 'rgba(0,0,0,0.05)') {
-    return {
-      x: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } } },
-      y: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmtShort(v) } }
-    };
-  },
-
-  renderTrend(months) {
-    this.destroy('trend');
-    const ctx = el('chart-trend'); if (!ctx) return;
-    const d = this._defaults({ callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.raw)}` } });
-    d.plugins.legend.display = true;
-    this._c.trend = new Chart(ctx, {
-      type: 'line', data: {
-        labels: months.map(m => m.bulan),
-        datasets: [
-          { label: 'Saldo', data: months.map(m => m.saldo), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', borderWidth: 2.5, fill: true, tension: 0.35, pointRadius: 3 }
-        ]
-      },
-      options: { ...d, scales: this._scales() }
-    });
-  },
-
-  renderDonut(cats) {
-    this.destroy('donut');
-    const ctx = el('chart-donut'); if (!ctx) return;
-    const colors = { 'Inventory': '#ef4444', 'Operasional': '#f59e0b', 'Expensess': '#8b5cf6', 'Ekuitas': '#ec4899', 'Pendapatan': '#10b981', 'Lainnya': '#94a3b8' };
-    const labels = Object.keys(cats);
-    const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
-    let msgEl = document.getElementById('donut-empty-msg');
-    if (!labels.length) {
-      if (!msgEl) {
-        msgEl = document.createElement('div');
-        msgEl.id = 'donut-empty-msg';
-        msgEl.style = 'display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:13px';
-        msgEl.textContent = 'Belum ada data pengeluaran';
-        wrapper.appendChild(msgEl);
-      }
-      msgEl.style.display = 'flex';
-      ctx.style.display = 'none';
-      return;
-    }
-    if (msgEl) msgEl.style.display = 'none';
-    ctx.style.display = 'block';
-    const d = this._defaults({ callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)}` } });
-    this._c.donut = new Chart(ctx, {
-      type: 'doughnut', data: {
-        labels, datasets: [{ data: Object.values(cats), backgroundColor: labels.map(l => colors[l] || '#94a3b8'), borderWidth: 0, hoverOffset: 6 }]
-      },
-      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { ...d.plugins.legend, position: 'right' } } }
-    });
-  },
-
-  renderIncomeDonut(cats) {
-    this.destroy('donutIncome');
-    const ctx = el('chart-donut-income'); if (!ctx) return;
-    const colors = { 'Penjualan Utama': '#10b981', 'Pendapatan Lainnya': '#0ea5e9', 'Pendapatan': '#10b981', 'Ekuitas': '#ec4899' };
-    const labels = Object.keys(cats);
-    const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
-    let msgEl = document.getElementById('donut-income-empty-msg');
-    if (!labels.length) {
-      if (!msgEl) {
-        msgEl = document.createElement('div');
-        msgEl.id = 'donut-income-empty-msg';
-        msgEl.style = 'display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:13px';
-        msgEl.textContent = 'Belum ada data pemasukan';
-        wrapper.appendChild(msgEl);
-      }
-      msgEl.style.display = 'flex';
-      ctx.style.display = 'none';
-      return;
-    }
-    if (msgEl) msgEl.style.display = 'none';
-    ctx.style.display = 'block';
-    const d = this._defaults({ callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)}` } });
-    this._c.donutIncome = new Chart(ctx, {
-      type: 'doughnut', data: {
-        labels, datasets: [{ data: Object.values(cats), backgroundColor: labels.map(l => colors[l] || '#10b981'), borderWidth: 0, hoverOffset: 6 }]
-      },
-      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { ...d.plugins.legend, position: 'right' } } }
-    });
-  },
-
-  renderTopProducts(products) {
-    this.destroy('top');
-    const ctx = el('chart-topproduct'); if (!ctx) return;
-    const COLORS = ['#3b82f6', '#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
-    const d = this._defaults({ callbacks: { label: c => ` Profit: ${fmt(c.raw)} (${products[c.dataIndex].count}x)` } });
-    d.plugins.legend.display = false;
-    this._c.top = new Chart(ctx, {
-      type: 'bar', data: {
-        labels: products.map(p => p.name.length > 35 ? p.name.substr(0, 33) + '…' : p.name),
-        datasets: [{ data: products.map(p => p.profit), backgroundColor: products.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 5 }]
-      },
-      options: { ...d, indexAxis: 'y', scales: { x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmtShort(v) } }, y: { grid: { display: false }, ticks: { color: '#334155', font: { family: 'Inter', size: 11 } } } } }
-    });
-  },
-
-  renderMonthlyBars(months) {
-    this.destroy('mbars');
-    const ctx = el('chart-monthly-bars'); if (!ctx) return;
-    const d = this._defaults({ callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.raw)}` } });
-    this._c.mbars = new Chart(ctx, {
-      type: 'bar', data: {
-        labels: months.map(m => m.bulan),
-        datasets: [
-          { label: 'Pemasukan', data: months.map(m => m.masuk), backgroundColor: 'rgba(16,185,129,0.75)', borderColor: '#10b981', borderWidth: 1, borderRadius: 4 },
-          { label: 'Pengeluaran', data: months.map(m => m.keluar), backgroundColor: 'rgba(239,68,68,0.75)', borderColor: '#ef4444', borderWidth: 1, borderRadius: 4 }
-        ]
-      },
-      options: { ...d, scales: this._scales() }
-    });
-  },
-
-  renderProfitTrend(months) {
-    this.destroy('profit');
-    const ctx = el('chart-profit-trend'); if (!ctx) return;
-    const d = this._defaults({ callbacks: { label: c => ` Profit: ${fmt(c.raw)}` } });
-    d.plugins.legend.display = false;
-    this._c.profit = new Chart(ctx, {
-      type: 'line', data: {
-        labels: months.map(m => m.bulan),
-        datasets: [{ label: 'Profit', data: months.map(m => m.profit), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 2.5, fill: true, tension: 0.35, pointRadius: 3 }]
-      },
-      options: { ...d, scales: this._scales() }
-    });
-  },
-};
-
-// ============ PAGINATION ============
-function makePagination(containerId, current, total, onPage) {
-  const c = el(containerId); if (!c) return;
-  if (total <= 1) { c.innerHTML = ''; return; }
-  let h = `<button class="pg-btn" ${current <= 1 ? 'disabled' : ''} onclick="(${onPage})(${current - 1})">‹</button>`;
-  for (let i = 1; i <= total; i++) {
-    if (i === 1 || i === total || (i >= current - 1 && i <= current + 1)) {
-      h += `<button class="pg-btn ${i === current ? 'active' : ''}" onclick="(${onPage})(${i})">${i}</button>`;
-    } else if (i === current - 2 || i === current + 2) {
-      h += `<button class="pg-btn" disabled style="border:none;pointer-events:none">…</button>`;
-    }
-  }
-  h += `<button class="pg-btn" ${current >= total ? 'disabled' : ''} onclick="(${onPage})(${current + 1})">›</button>`;
-  c.innerHTML = h;
-}
-
-// ============ TOAST ============
-function toast(msg, type = 'success') {
-  const c = el('toast-wrap');
-  if (!c) return;
-  const d = document.createElement('div');
-  d.className = `toast ${type}`;
-  d.innerHTML = `<span>${type === 'success' ? '✅' : type === 'info' ? 'ℹ️' : '❌'}</span><span>${msg}</span>`;
-  c.appendChild(d);
-  setTimeout(() => { d.style.opacity = '0'; d.style.transition = 'opacity 0.3s'; setTimeout(() => d.remove(), 350); }, 3000);
-}
-
-// ============ MODAL HELPERS ============
-function openModal(id) {
-  const m = el(id);
-  if (m) { m.style.display = 'flex'; requestAnimationFrame(() => m.classList.add('open')); }
-}
-function closeModal(id) {
-  const m = el(id);
-  if (m) { m.classList.remove('open'); setTimeout(() => { m.style.display = 'none'; }, 250); }
-}
-
-// ============ APP CONTROLLER ============
-const App = {
-  tx: { filter: { mode: 'semua' }, kat: '', search: '', sortBy: 'tanggal', sortDir: 'desc', page: 1 },
-  sales: { filter: { mode: 'semua' }, search: '', sortBy: 'notaNum', sortDir: 'desc', page: 1 },
-  overview: { filter: { mode: 'bulan', year: String(new Date().getFullYear()), month: new Date().getMonth() + 1 } },
-  laporan: { filter: { mode: 'semua' } },
-  inputTab: 'kas',
-
-  async init() {
-    await Store.init();
-    this._setupNav();
-    this._setupCalendarFilters();
-    this._setupTxFilters();
-    this._setupForm();
-    this._setupModals();
-    this.go('overview');
-    setText('badge-tx', Store._transactions.length);
-    if (Store._invalidDates > 0) {
-      setTimeout(() => toast(`⚠️ ${Store._invalidDates} baris dengan tanggal tidak valid dilewati.`, 'error'), 500);
-    }
-  },
-
-  _setupNav() {
-    document.querySelectorAll('.nav-link[data-page]').forEach(btn => {
-      btn.onclick = (e) => { e.preventDefault(); this.go(btn.dataset.page); };
-    });
-    const navToggle = el('navToggle');
-    if (navToggle) navToggle.onclick = () => el('navMenu').classList.toggle('show');
-  },
-
-  go(page) {
-    document.querySelectorAll('.nav-link[data-page]').forEach(b => b.classList.toggle('active', b.dataset.page === page));
-    document.querySelectorAll('.page-section').forEach(s => s.classList.toggle('active', s.id === `page-${page}`));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    const r = {
-      overview: () => this._renderOverview(),
-      transaksi: () => this._renderTx(),
-      penjualan: () => this._renderSales(),
-      input: () => this._renderInput(),
-      laporan: () => this._renderLaporan()
-    };
-    (r[page] || (() => { }))();
-  },
-
-  _setupCalendarFilters() {
-    const ovWrap = el('ov-filter-wrap');
-    if (ovWrap) {
-      ovWrap.innerHTML = CalendarFilter.buildHTML('ov');
-      CalendarFilter.register('ov', (f) => { this.overview.filter = f; this._renderOverview(); }, () => Store.getAvailableTxYears());
-      CalendarFilter.setFilter('ov', this.overview.filter);
-    }
-
-    const salesWrap = el('sales-filter-wrap');
-    if (salesWrap) {
-      salesWrap.innerHTML = CalendarFilter.buildHTML('sales');
-      CalendarFilter.register('sales', (f) => { this.sales.filter = f; this.sales.page = 1; this._renderSales(); }, () => Store.getAvailableSalesYears());
-    }
-
-    const lapWrap = el('lap-filter-wrap');
-    if (lapWrap) {
-      lapWrap.innerHTML = CalendarFilter.buildHTML('lap');
-      CalendarFilter.register('lap', (f) => { this.laporan.filter = f; this._renderLaporan(); }, () => Store.getAvailableTxYears());
-    }
-  },
-
-  // ---- Overview ----
-  _renderOverview() {
-    const filter = this.overview.filter;
-    const saldo = Store.getLatestSaldo();
-    setText('kpi-saldo', fmt(saldo));
-
-    const stats = Store.getStatsByFilter(filter);
-    const label = filterLabel(filter);
-    setText('ov-period', label);
-
-    const kpiMasukLabel = el('kpi-masuk-label');
-    const kpiKeluarLabel = el('kpi-keluar-label');
-    if (kpiMasukLabel) kpiMasukLabel.textContent = `Pemasukan — ${label}`;
-    if (kpiKeluarLabel) kpiKeluarLabel.textContent = `Pengeluaran — ${label}`;
-
-    setText('kpi-masuk', fmt(stats.masuk));
-    setText('kpi-keluar', fmt(stats.keluar));
-
-    const prevFilter = getPrevFilter(filter);
-    if (prevFilter && filter.mode !== 'semua') {
-      const prevStats = Store.getStatsByFilter(prevFilter);
-      this._setChange('kpi-masuk-sub', stats.masuk, prevStats.masuk);
-      this._setChange('kpi-keluar-sub', stats.keluar, prevStats.keluar);
-    } else {
-      if (filter.mode === 'semua') {
-        setText('kpi-masuk-sub', `${stats.countMasuk} transaksi masuk`);
-        setText('kpi-keluar-sub', `${stats.countKeluar} transaksi keluar`);
-        if (el('kpi-masuk-sub')) el('kpi-masuk-sub').style.color = 'var(--green)';
-        if (el('kpi-keluar-sub')) el('kpi-keluar-sub').style.color = 'var(--red)';
-      } else {
-        setText('kpi-masuk-sub', `${stats.count} transaksi`);
-        setText('kpi-keluar-sub', '–');
-        if (el('kpi-masuk-sub')) el('kpi-masuk-sub').style.color = 'var(--text-muted)';
-        if (el('kpi-keluar-sub')) el('kpi-keluar-sub').style.color = 'var(--text-muted)';
-      }
-    }
-
-    const trendData = Store.getTrendStats(filter);
-    Charts.renderTrend(trendData);
-    Charts.renderDonut(Store.getCategorySpend(filter));
-    if (Charts.renderIncomeDonut) Charts.renderIncomeDonut(Store.getIncomeSpend(filter));
-    Charts.renderTopProducts(Store.getTopProducts(7, filter));
-
-    const recent = Store.getTx({ filter, sortDir: 'desc' }).slice(0, 8);
-    const wrap = el('recent-tx-wrap');
-    if (wrap) {
-      if (!recent.length) {
-        wrap.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">Belum ada transaksi</div></div>`;
-        return;
-      }
-      wrap.innerHTML = `<table class="data-table"><thead><tr><th>Tanggal</th><th>Deskripsi</th><th>Kategori</th><th>Masuk</th><th>Keluar</th><th>Saldo</th></tr></thead><tbody>
-        ${recent.map(t => `<tr>
-          <td class="cell-date">${fmtDate(t.tanggal)}</td>
-          <td class="cell-desc">${t.deskripsi || '–'}</td>
-          <td>${catBadge(t.kategori)}</td>
-          <td class="cell-in">${t.uangMasuk ? fmt(t.uangMasuk) : '–'}</td>
-          <td class="cell-out">${t.uangKeluar ? fmt(t.uangKeluar) : '–'}</td>
-          <td class="cell-saldo">${fmt(t.saldo)}</td>
-        </tr>`).join('')}
-      </tbody></table>`;
-    }
-  },
-
-  _setChange(id, cur, prev) {
-    if (!prev && prev !== 0) return;
-    if (prev === 0) { setText(id, cur > 0 ? '↑ baru' : '–'); return; }
-    const pct = ((cur - prev) / Math.abs(prev) * 100).toFixed(1);
-    const up = cur >= prev;
-    setText(id, `${up ? '↑' : '↓'} ${Math.abs(pct)}% vs periode lalu`);
-    const e = el(id); if (e) e.style.color = up ? 'var(--green)' : 'var(--red)';
-  },
-
-  // ---- Transaksi (Buku Besar) ----
-  _setupTxFilters() {
-    const katSel = document.getElementById('filter-kategori');
-    if (katSel) {
-      const cats = [...new Set(Store._transactions.map(t => t.kategori).filter(Boolean))].sort();
-      cats.forEach(c => {
-        const o = document.createElement('option');
-        o.value = c; o.textContent = c;
-        katSel.appendChild(o);
-      });
-      katSel.onchange = e => { this.tx.kat = e.target.value === 'semua' ? '' : e.target.value; this.tx.page = 1; this._renderTx(); };
-    }
-
-    const srch = document.getElementById('filter-search');
-    if (srch) srch.oninput = e => { this.tx.search = e.target.value; this.tx.page = 1; this._renderTx(); };
-
-    const txFilterWrap = el('tx-filter-wrap');
-    if (txFilterWrap) {
-      txFilterWrap.innerHTML = CalendarFilter.buildHTML('tx');
-      CalendarFilter.register('tx', (f) => { this.tx.filter = f; this.tx.page = 1; this._renderTx(); }, () => Store.getAvailableTxYears());
-    }
-
-    const salesSrch = document.getElementById('sales-search');
-    if (salesSrch) salesSrch.oninput = e => { this.sales.search = e.target.value; this.sales.page = 1; this._renderSales(); };
-  },
-
-  sortTx(field) {
-    this.tx.sortDir = this.tx.sortBy === field ? (this.tx.sortDir === 'asc' ? 'desc' : 'asc') : 'desc';
-    this.tx.sortBy = field;
-    this.tx.page = 1;
-    document.querySelectorAll('[id^="tx-arr-"]').forEach(e => e.textContent = '↕');
-    const arrEl = el(`tx-arr-${field}`); if (arrEl) arrEl.textContent = this.tx.sortDir === 'asc' ? '↑' : '↓';
-    this._renderTx();
-  },
-
-  _renderTx() {
-    const PER_PAGE = 15;
-    const data = Store.getTx({ filter: this.tx.filter, kat: this.tx.kat, search: this.tx.search, sortBy: this.tx.sortBy, sortDir: this.tx.sortDir });
-
-    let tMasuk = 0, tKeluar = 0;
-    data.forEach(t => { tMasuk += t.uangMasuk || 0; tKeluar += t.uangKeluar || 0; });
-    setText('qs-count', data.length);
-    setText('qs-masuk', fmt(tMasuk));
-    setText('qs-keluar', fmt(tKeluar));
-
-    const total = Math.ceil(data.length / PER_PAGE) || 1;
-    const p = Math.min(this.tx.page, total);
-    this.tx.page = p;
-    const slice = data.slice((p - 1) * PER_PAGE, p * PER_PAGE);
-
-    const tbody = el('tx-tbody');
-    if (!tbody) return;
-    if (!slice.length) {
-      tbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="padding:40px">Tidak ada data untuk filter ini.</td></tr>`;
-    } else {
-      tbody.innerHTML = slice.map(t => `<tr>
-        <td class="cell-date">${fmtDate(t.tanggal)}</td>
-        <td class="cell-desc">${t.deskripsi || '–'}${t.quantity ? ` <span style="font-size:11px;color:var(--text-muted);background:var(--bg-input);padding:2px 6px;border-radius:4px;margin-left:6px;white-space:nowrap">Qty: ${t.quantity}</span>` : ''}</td>
-        <td>${catBadge(t.kategori)}</td>
-        <td class="cell-in">${t.uangMasuk ? fmt(t.uangMasuk) : '–'}</td>
-        <td class="cell-out">${t.uangKeluar ? fmt(t.uangKeluar) : '–'}</td>
-        <td class="cell-saldo">${fmt(t.saldo)}</td>
-        <td class="cell-action">
-          <button class="btn-icon-edit" title="Edit" onclick="App.editTx('${t.id}')">✏️</button>
-          <button class="btn-icon-del" title="Hapus" onclick="App.confirmDeleteTx('${t.id}')">🗑️</button>
-        </td>
-      </tr>`).join('');
-    }
-
-    setText('tx-pinfo', `Hal ${p} / ${total} • ${data.length} transaksi`);
-    makePagination('tx-pages', p, total, `(pg) => { App.tx.page = pg; App._renderTx(); }`);
-  },
-
-  editTx(id) {
-    const t = Store.getTxById(id);
-    if (!t) return;
-    el('etx-id').value = id;
-    el('etx-tanggal').value = t.tanggal || '';
-    el('etx-kategori').value = mapCategory(t.kategori);
-    el('etx-desc').value = t.deskripsi || '';
-    if (el('etx-qty')) el('etx-qty').value = t.quantity || t.jumlah || '';
-    el('etx-masuk').value = t.uangMasuk || '';
-    el('etx-keluar').value = t.uangKeluar || 0;
-    el('etx-saldo').value = t.saldo || 0;
-    openModal('modal-edit-tx');
-  },
-
-  async saveTxEdit() {
-    const id = el('etx-id').value;
-    const updates = {
-      tanggal: el('etx-tanggal').value,
-      kategori: el('etx-kategori').value,
-      deskripsi: el('etx-desc').value.trim(),
-      quantity: el('etx-qty') ? el('etx-qty').value.trim() : '',
-      uangMasuk: parseFloat(el('etx-masuk').value) || 0,
-      uangKeluar: parseFloat(el('etx-keluar').value) || 0,
-      saldo: parseFloat(el('etx-saldo').value) || 0,
-    };
-
-    // Disable tombol saat menyimpan
-    const submitBtn = el('modal-edit-tx').querySelector('.btn-primary');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Menyimpan...'; }
-
-    const success = await Store.updateTx(id, updates);
-    if (success) {
-      toast('Transaksi berhasil diupdate!', 'success');
-      closeModal('modal-edit-tx');
-      this._renderTx();
-      setText('badge-tx', Store._transactions.length);
-    }
-
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg> Simpan Perubahan`;
-    }
-  },
-
-  confirmDeleteTx(id) {
-    const t = Store.getTxById(id);
-    if (!t) return;
-    if (confirm(`Hapus transaksi:\n"${t.deskripsi}" (${t.tanggal})?\n\nAksi ini tidak bisa dibatalkan.`)) {
-      Store.deleteTx(id);
-      toast('Transaksi dihapus.', 'success');
-      this._renderTx();
-      setText('badge-tx', Store._transactions.length);
-    }
-  },
-
-  // ---- Sales ----
-  _renderSales() {
-    const data = Store.getSales({ filter: this.sales.filter, search: this.sales.search, sortBy: this.sales.sortBy, sortDir: this.sales.sortDir });
-
-    let tOmset = 0, tProfit = 0;
-    let turnoverSum = 0, turnoverCount = 0;
-    const sold = data.filter(s => s.tanggalKeluar && s.hargaJual > 0);
-    sold.forEach(s => {
-      tOmset += s.hargaJual || 0;
-      tProfit += s.profit || 0;
-      if (s.turnoverDays != null && s.turnoverDays >= 0) {
-        turnoverSum += s.turnoverDays;
-        turnoverCount++;
-      }
-    });
-    const avgTurnover = turnoverCount ? Math.round(turnoverSum / turnoverCount) : null;
-    const marginProfit = tOmset > 0 ? ((tProfit / tOmset) * 100).toFixed(1) : 0;
-
-    setText('sales-kpi-unit', `${sold.length} / ${data.length}`);
-    setText('sales-kpi-revenue', fmt(tOmset));
-    setText('sales-kpi-total-profit', fmt(tProfit));
-    setText('sales-kpi-margin', `${marginProfit}%`);
-    setText('sales-kpi-avg-profit', fmt(sold.length ? Math.round(tProfit / sold.length) : 0));
-    setText('sales-kpi-turnover', avgTurnover != null ? `${avgTurnover} hari` : '– hari');
-
-    const PER_PAGE = 20;
-    const total = Math.ceil(data.length / PER_PAGE) || 1;
-    const p = Math.min(this.sales.page, total);
-    this.sales.page = p;
-    const slice = data.slice((p - 1) * PER_PAGE, p * PER_PAGE);
-
-    const tbody = el('sales-table-body');
-    if (!tbody) return;
-
-    if (!slice.length) {
-      tbody.innerHTML = `<tr><td colspan="10" class="empty-state" style="padding:40px">Belum ada data penjualan untuk periode ini.</td></tr>`;
-    } else {
-      tbody.innerHTML = slice.map(s => {
-        const days = s.turnoverDays;
-        let turnoverBadge;
-        if (days == null || days < 0) {
-          turnoverBadge = '<span style="color:var(--text-muted)">–</span>';
-        } else if (days <= 14) {
-          turnoverBadge = `<span class="turnover-badge fast">${days}h ⚡</span>`;
-        } else if (days <= 30) {
-          turnoverBadge = `<span class="turnover-badge medium">${days}h</span>`;
-        } else {
-          turnoverBadge = `<span class="turnover-badge slow">${days}h</span>`;
-        }
-        const profitClass = (s.profit || 0) >= 0 ? 'profit-positive' : 'profit-negative';
-
-        let profitPct = '';
-        if (s.hargaBeli > 0 && s.tanggalKeluar) {
-          const pct = ((s.profit / s.hargaBeli) * 100).toFixed(1);
-          const color = s.profit >= 0 ? '#059669' : '#dc2626';
-          const bg = s.profit >= 0 ? '#d1fae5' : '#fee2e2';
-          profitPct = `<div style="font-size:11px;color:${color};background:${bg};padding:2px 4px;border-radius:4px;display:inline-block;margin-top:2px;font-weight:600">${pct}%</div>`;
-        }
-
-        const statusBadge = s.tanggalKeluar
-          ? '<span class="status-badge sold">Terjual</span>'
-          : '<span class="status-badge stok">Stok</span>';
-        return `<tr>
-          <td style="font-weight:700;color:var(--accent-blue)">${s.nota || '–'}</td>
-          <td class="cell-date">${fmtDate(s.tanggalMasuk)}</td>
-          <td class="cell-date">${s.tanggalKeluar ? fmtDate(s.tanggalKeluar) : statusBadge}</td>
-          <td class="cell-desc" style="max-width:220px">${s.tipeModel || s.tipe || '–'}</td>
-          <td class="cell-money expense">${fmt(s.hargaBeli)}</td>
-          <td class="cell-money income">${fmt(s.hargaJual)}</td>
-          <td class="cell-money ${profitClass}" style="line-height:1.2">${fmt(s.profit)}<br>${profitPct}</td>
-          <td>${turnoverBadge}</td>
-          <td style="color:var(--text-muted);font-size:12px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.keterangan || '–'}</td>
-          <td class="cell-action">
-            <button class="btn-icon-edit" title="Edit" onclick="App.editSale('${s.id}')">✏️</button>
-            <button class="btn-icon-del" title="Hapus" onclick="App.confirmDeleteSale('${s.id}')">🗑️</button>
-          </td>
-        </tr>`;
-      }).join('');
-    }
-
-    const filterLbl = filterLabel(this.sales.filter);
-    setText('sales-page-info', `${sold.length} terjual / ${data.length} total (${filterLbl})`);
-    makePagination('sales-pages', p, total, `(pg) => { App.sales.page = pg; App._renderSales(); }`);
-  },
-
-  editSale(id) {
-    const s = Store.getSaleById(id);
-    if (!s) return;
-    el('es-id').value = id;
-    el('es-nota').value = s.nota || '';
-    el('es-tanggal-masuk').value = s.tanggalMasuk || '';
-    el('es-tanggal-keluar').value = s.tanggalKeluar || '';
-    el('es-tipe').value = s.tipeModel || s.tipe || '';
-    el('es-harga-beli').value = s.hargaBeli || 0;
-    el('es-harga-jual').value = s.hargaJual || 0;
-    el('es-keterangan').value = s.keterangan || '';
-    this._updateSaleEditPreview();
-    openModal('modal-edit-sale');
-  },
-
-  _updateSaleEditPreview() {
-    const beli = parseFloat(el('es-harga-beli').value) || 0;
-    const jual = parseFloat(el('es-harga-jual').value) || 0;
-    const profit = jual - beli;
-    const profitEl = el('es-profit-preview');
-    if (profitEl) {
-      let pct = '';
-      if (beli > 0) pct = ` (${((profit / beli) * 100).toFixed(1)}%)`;
-      profitEl.textContent = fmt(profit) + pct;
-      profitEl.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)';
-    }
-  },
-
-  saveSaleEdit() {
-    const id = el('es-id').value;
-    const updates = {
-      nota: el('es-nota').value.trim(),
-      tanggalMasuk: el('es-tanggal-masuk').value || null,
-      tanggalKeluar: el('es-tanggal-keluar').value || null,
-      tipeModel: el('es-tipe').value.trim(),
-      tipe: el('es-tipe').value.trim(),
-      hargaBeli: parseFloat(el('es-harga-beli').value) || 0,
-      hargaJual: parseFloat(el('es-harga-jual').value) || 0,
-      keterangan: el('es-keterangan').value.trim(),
-    };
-    if (Store.updateSale(id, updates)) {
-      toast('Data penjualan berhasil diupdate!', 'success');
-      closeModal('modal-edit-sale');
-      this._renderSales();
-    }
-  },
-
-  async confirmDeleteSale(id) {
-    const s = Store.getSaleById(id);
-    if (!s) return;
-    if (confirm(`Hapus unit HP:\n#${s.nota} – ${s.tipeModel || s.tipe}?\n\nData akan dihapus dari Google Sheets.\nAksi ini tidak bisa dibatalkan.`)) {
-      await Store.deleteSale(id);
-      toast(`Unit #${s.nota} berhasil dihapus!`, 'success');
-      this._renderSales();
-      this._refreshSellUnitOptions();
-    }
-  },
-
-  // ---- Input Form ----
-  _setupForm() {
-    const today = new Date().toISOString().split('T')[0];
-    if (el('f-tanggal')) el('f-tanggal').value = today;
-    if (el('f-buy-tanggal')) el('f-buy-tanggal').value = today;
-    if (el('f-sell-tanggal')) el('f-sell-tanggal').value = today;
-    this._updateSaldoDisplay();
-
-    if (el('f-kategori')) el('f-kategori').onchange = () => this._updateMoneyFields();
-    if (el('f-masuk') && el('f-keluar')) {
-      el('f-masuk').oninput = el('f-keluar').oninput = () => this._updatePreview();
-    }
-    if (el('f-desc')) {
-      el('f-desc').oninput = () => { this._autocomplete(); this._updatePreview(); };
-      document.addEventListener('click', e => {
-        if (el('f-desc-ac') && !e.target.closest('#f-desc')) el('f-desc-ac').style.display = 'none';
-      });
-    }
-
-    if (el('input-form')) el('input-form').onsubmit = (e) => { e.preventDefault(); this._submitTx(); };
-    if (el('buy-form')) el('buy-form').onsubmit = (e) => { e.preventDefault(); this._submitBuy(); };
-    if (el('sell-form')) el('sell-form').onsubmit = (e) => { e.preventDefault(); this._submitSell(); };
-
-    if (el('f-buy-harga-beli')) el('f-buy-harga-beli').oninput = () => this._updateBuyPreview();
-    ['f-sell-unit', 'f-sell-harga-jual'].forEach(fid => {
-      if (el(fid)) el(fid).oninput = () => this._updateSellPreview();
-    });
-  },
-
-  _renderInput() {
-    this._updateSaldoDisplay();
-    this._refreshSellUnitOptions();
-    if (el('f-buy-nota')) el('f-buy-nota').value = Store.getNextNota();
-  },
-
-  switchInputTab(tab) {
-    this.inputTab = tab;
-    document.querySelectorAll('.input-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-    document.querySelectorAll('.input-tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === tab));
-    if (tab === 'jual') this._refreshSellUnitOptions();
-  },
-
-  _refreshSellUnitOptions() {
-    const sel = el('f-sell-unit');
-    if (!sel) return;
-    const unsold = Store.getUnsoldUnits();
-    sel.innerHTML = '<option value="">Pilih unit yang dijual...</option>' +
-      unsold.map(s => `<option value="${s.id}" data-beli="${s.hargaBeli || 0}">${s.nota ? `#${s.nota} — ` : ''}${s.tipeModel || s.tipe || '?'} (beli: ${fmt(s.hargaBeli || 0)})</option>`).join('');
-    this._updateSellPreview();
-  },
-
-  _updateSaldoDisplay() { setText('f-saldo-val', fmt(Store.getLatestSaldo())); },
-
-  _updateMoneyFields() {
-    const kat = el('f-kategori') ? el('f-kategori').value : '';
-    const income = ['Penjualan Utama', 'Pendapatan Lainnya'];
-    const expense = ['Inventory', 'Operasional', 'Expensess'];
-    if (el('fg-masuk')) el('fg-masuk').style.display = expense.includes(kat) ? 'none' : 'flex';
-    if (el('fg-keluar')) el('fg-keluar').style.display = income.includes(kat) ? 'none' : 'flex';
-    if (income.includes(kat) && el('f-keluar')) el('f-keluar').value = '';
-    if (expense.includes(kat) && el('f-masuk')) el('f-masuk').value = '';
-    this._updatePreview();
-  },
-
-  _updatePreview() {
-    const kat = el('f-kategori') ? el('f-kategori').value : '';
-    const masuk = parseFloat(el('f-masuk') ? el('f-masuk').value : 0) || 0;
-    const keluar = parseFloat(el('f-keluar') ? el('f-keluar').value : 0) || 0;
-    const box = el('preview-box');
-    if (!box) return;
-    if (!kat && !masuk && !keluar) { box.classList.remove('show'); return; }
-    box.classList.add('show');
-    setText('pv-kat', kat || '–');
-    setText('pv-masuk', masuk ? fmt(masuk) : '–');
-    setText('pv-keluar', keluar ? fmt(keluar) : '–');
-    setText('pv-saldo', fmt(Store.getLatestSaldo() + masuk - keluar));
-  },
-
-  _updateBuyPreview() {
-    const beli = parseFloat(el('f-buy-harga-beli') ? el('f-buy-harga-beli').value : 0) || 0;
-    const prev = el('buy-preview');
-    if (!prev) return;
-    if (beli > 0) {
-      prev.classList.add('show');
-      setText('buy-pv-harga', fmt(beli));
-    } else { prev.classList.remove('show'); }
-  },
-
-  _updateSellPreview() {
-    const sel = el('f-sell-unit');
-    const jualEl = el('f-sell-harga-jual');
-    const prev = el('sell-preview');
-    if (!sel || !jualEl || !prev) return;
-    const selOpt = sel.options[sel.selectedIndex];
-    const hargaBeli = selOpt ? parseFloat(selOpt.dataset.beli || 0) : 0;
-    const hargaJual = parseFloat(jualEl.value) || 0;
-    const profit = hargaJual - hargaBeli;
-    if (hargaJual > 0 && sel.value) {
-      prev.classList.add('show');
-      setText('sell-pv-beli', fmt(hargaBeli));
-      setText('sell-pv-jual', fmt(hargaJual));
-      const profitEl = el('sell-pv-profit');
-      if (profitEl) {
-        let pct = '';
-        if (hargaBeli > 0) pct = ` (${((profit / hargaBeli) * 100).toFixed(1)}%)`;
-        profitEl.textContent = fmt(profit) + pct;
-        profitEl.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)';
-      }
-    } else { prev.classList.remove('show'); }
-  },
-
-  _autocomplete() {
-    const q = el('f-desc').value.trim();
-    const ac = el('f-desc-ac');
-    if (!ac) return;
-    if (q.length < 2) { ac.style.display = 'none'; return; }
-    const matches = Store.getDescriptions().filter(d => d.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
-    if (!matches.length) { ac.style.display = 'none'; return; }
-    ac.innerHTML = matches.map(m => `<div class="autocomplete-item" onclick="el('f-desc').value='${m.replace(/'/g, "\\'")}'; el('f-desc-ac').style.display='none'; App._updatePreview();">${m}</div>`).join('');
-    ac.style.display = 'block';
-  },
-
-  quickFill(desc, kat, masuk, keluar) {
-    if (el('f-desc')) el('f-desc').value = desc;
-    if (el('f-qty')) el('f-qty').value = '';
-    if (el('f-kategori')) el('f-kategori').value = kat;
-    this._updateMoneyFields();
-    if (masuk > 0 && el('f-masuk')) el('f-masuk').value = masuk;
-    if (keluar > 0 && el('f-keluar')) el('f-keluar').value = keluar;
-    this._updatePreview();
-  },
-
-  resetForm() {
-    if (el('input-form')) el('input-form').reset();
-    const today = new Date().toISOString().split('T')[0];
-    if (el('f-tanggal')) el('f-tanggal').value = today;
-    if (el('preview-box')) el('preview-box').classList.remove('show');
-    if (el('fg-masuk')) el('fg-masuk').style.display = 'flex';
-    if (el('fg-keluar')) el('fg-keluar').style.display = 'flex';
-  },
-
-  async _submitTx() {
-    const kat = el('f-kategori').value;
-    const masuk = parseFloat(el('f-masuk').value) || 0;
-    const keluar = parseFloat(el('f-keluar').value) || 0;
-    const tanggal = el('f-tanggal').value;
-    if (!isValidDate(tanggal)) { toast('Tanggal tidak valid!', 'error'); return; }
-    if (!kat) { toast('Pilih kategori dulu!', 'error'); return; }
-    if (!el('f-desc').value.trim()) { toast('Isi deskripsi transaksi!', 'error'); return; }
-    const newSaldo = Store.getLatestSaldo() + masuk - keluar;
-    // Disable tombol submit selama proses
-    const submitBtn = el('input-form') ? el('input-form').querySelector('button[type="submit"]') : null;
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Menyimpan...'; }
-
-    let sheetKat = kat;
-    if (kat === 'Penjualan Utama' || kat === 'Pendapatan Lainnya') sheetKat = 'Pendapatan';
-
-    await Store.addTx({
-      tanggal, deskripsi: el('f-desc').value.trim(), kategori: kat, kategoriRaw: sheetKat,
-      quantity: el('f-qty') ? el('f-qty').value.trim() : '',
-      uangMasuk: masuk, uangKeluar: keluar, saldo: newSaldo
-    });
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Simpan Transaksi`; }
-    setText('badge-tx', Store._transactions.length);
-    toast('✅ Transaksi kas berhasil disimpan!', 'success');
-    this.resetForm();
-    this._updateSaldoDisplay();
-  },
-
-  async _submitBuy() {
-    const tanggal = el('f-buy-tanggal').value;
-    const nota = el('f-buy-nota').value.trim();
-    const tipe = el('f-buy-tipe').value.trim();
-    const hargaBeli = parseFloat(el('f-buy-harga-beli').value) || 0;
-    const keterangan = el('f-buy-keterangan').value.trim();
-    if (!isValidDate(tanggal)) { toast('Tanggal tidak valid!', 'error'); return; }
-    if (!tipe) { toast('Isi tipe/model HP!', 'error'); return; }
-    if (hargaBeli <= 0) { toast('Harga beli harus lebih dari 0!', 'error'); return; }
-    await Store.addSale({ nota: nota || `NOTA-${Date.now()}`, tanggalMasuk: tanggal, tanggalKeluar: null, tipeModel: tipe, tipe, hargaBeli, hargaJual: 0, profit: -hargaBeli, keterangan, turnoverDays: null });
-    if (el('buy-form')) el('buy-form').reset();
-    if (el('f-buy-tanggal')) el('f-buy-tanggal').value = new Date().toISOString().split('T')[0];
-    if (el('f-buy-nota')) el('f-buy-nota').value = Store.getNextNota();
-    if (el('buy-preview')) el('buy-preview').classList.remove('show');
-    this._refreshSellUnitOptions();
-  },
-
-  async _submitSell() {
-    const saleId = el('f-sell-unit').value;
-    const tanggal = el('f-sell-tanggal').value;
-    const hargaJual = parseFloat(el('f-sell-harga-jual').value) || 0;
-    const keterangan = el('f-sell-keterangan') ? el('f-sell-keterangan').value.trim() : '';
-    if (!saleId) { toast('Pilih unit yang dijual!', 'error'); return; }
-    if (!isValidDate(tanggal)) { toast('Tanggal tidak valid!', 'error'); return; }
-    if (hargaJual <= 0) { toast('Harga jual harus lebih dari 0!', 'error'); return; }
-    const sale = Store.getSaleById(saleId);
-    if (!sale) { toast('Unit tidak ditemukan!', 'error'); return; }
-    await Store.updateSale(saleId, { tanggalKeluar: tanggal, hargaJual, keterangan: keterangan || sale.keterangan });
-    toast(`✅ Penjualan "${sale.tipeModel || sale.tipe}" berhasil disimpan!`, 'success');
-    if (el('sell-form')) el('sell-form').reset();
-    if (el('f-sell-tanggal')) el('f-sell-tanggal').value = new Date().toISOString().split('T')[0];
-    if (el('sell-preview')) el('sell-preview').classList.remove('show');
-    this._refreshSellUnitOptions();
-  },
-
-  // ---- Laporan ----
-  _renderLaporan() {
-    const filter = this.laporan.filter;
-    const stats = Store.getStatsByFilter(filter);
-    setText('r-masuk', fmt(stats.masuk));
-    setText('r-keluar', fmt(stats.keluar));
-    setText('r-period-label', filterLabel(filter));
-
-    const months = Store.getMonthlyStats();
-    Charts.renderMonthlyBars(months);
-
-    const tbody = el('monthly-tbody');
-    if (tbody) {
-      tbody.innerHTML = months.map(m => `<tr>
-        <td style="font-weight:700">${fmtYearMonth(m.bulan)}</td>
-        <td class="cell-mono">${m.count}</td>
-        <td class="cell-in">${fmt(m.masuk)}</td>
-        <td class="cell-out">${fmt(m.keluar)}</td>
-        <td class="cell-saldo">${fmt(m.saldo)}</td>
-      </tr>`).join('');
-    }
-  },
-
-  // ---- Modal Setup ----
-  _setupModals() {
-    document.querySelectorAll('.modal-overlay').forEach(overlay => {
-      overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(overlay.id); });
-    });
-    ['es-harga-beli', 'es-harga-jual'].forEach(fid => {
-      if (el(fid)) el(fid).oninput = () => this._updateSaleEditPreview();
-    });
-  },
-
-  // ---- Export ----
-  exportTx() {
-    const data = Store.getTx({ filter: this.tx.filter, kat: this.tx.kat, search: this.tx.search });
-    if (!data.length) { toast('Tidak ada data untuk diexport.', 'error'); return; }
-    const rows = [['Tanggal', 'Deskripsi', 'Kategori', 'Uang Masuk', 'Uang Keluar', 'Saldo', 'Qty'],
-    ...data.map(t => [t.tanggal, t.deskripsi, t.kategori, t.uangMasuk || 0, t.uangKeluar || 0, t.saldo || 0, t.quantity || ''])];
-    this._downloadXLSX(rows, 'BukuBesar_KarimGadget');
-  },
-
-  exportSales() {
-    const data = Store.getSales({ filter: this.sales.filter, search: this.sales.search });
-    if (!data.length) { toast('Tidak ada data penjualan.', 'error'); return; }
-    const rows = [['Nota', 'Tgl Masuk', 'Tgl Terjual', 'Model', 'Harga Beli', 'Harga Jual', 'Profit', 'Waktu Putar', 'Keterangan'],
-    ...data.map(s => [s.nota, s.tanggalMasuk, s.tanggalKeluar, s.tipeModel || s.tipe, s.hargaBeli || 0, s.hargaJual || 0, s.profit || 0, s.turnoverDays, s.keterangan])];
-    this._downloadXLSX(rows, 'DataPenjualan_KarimGadget');
-  },
-
-  exportReportXLSX() {
-    const months = Store.getMonthlyStats();
-    const rows = [['Bulan', 'Jumlah Tx', 'Pemasukan', 'Pengeluaran', 'Saldo Akhir'],
-    ...months.map(m => [fmtYearMonth(m.bulan), m.count, m.masuk, m.keluar, m.saldo])];
-    this._downloadXLSX(rows, 'Laporan_KarimGadget');
-  },
-
-  exportReportCSV() {
-    const months = Store.getMonthlyStats();
-    const header = ['Bulan', 'Jumlah Tx', 'Pemasukan', 'Pengeluaran', 'Saldo Akhir'];
-    const rows = months.map(m => [fmtYearMonth(m.bulan), m.count, m.masuk, m.keluar, m.saldo]);
-    const csv = [header, ...rows].map(r => r.join(',')).join('\n');
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
-    a.download = `Laporan_KarimGadget_${Date.now()}.csv`;
-    a.click();
-  },
-
-  _downloadXLSX(rows, name) {
-    if (typeof XLSX === 'undefined') { toast('Library XLSX belum dimuat.', 'error'); return; }
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Data');
-    XLSX.writeFile(wb, `${name}_${Date.now()}.xlsx`);
-    toast('File Excel berhasil diunduh!', 'success');
-  },
-
-  resetAllData() {
-    if (!confirm('⚠️ HAPUS SEMUA DATA lokal dan reload dari Google Sheets?\nAksi ini TIDAK BISA dibatalkan!')) return;
-    ['kg_tx_cache', 'kg_pending_tx', 'kg_sales_cache', 'kg_pending_sales'].forEach(k => localStorage.removeItem(k));
-    location.reload();
-  },
-};
-
-// ============ BOOTSTRAP ============
-document.addEventListener('DOMContentLoaded', () => App.init());
+      </a>
+
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+
+      <div class="navbar-menu" id="navMenu">
+        <button class="nav-link active" data-page="overview">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          <span>Overview</span>
+        </button>
+        <button class="nav-link" data-page="transaksi">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span>Buku Besar</span>
+          <span class="nav-badge" id="badge-tx">0</span>
+        </button>
+        <button class="nav-link" data-page="penjualan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          <span>Penjualan</span>
+        </button>
+        <button class="nav-link" data-page="input">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          <span>Input Baru</span>
+        </button>
+        <button class="nav-link" data-page="laporan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span>Laporan</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+
+  <main class="main-content">
+
+    <!-- =================== OVERVIEW =================== -->
+    <section id="page-overview" class="page-section active">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+        <div>
+          <h1 class="page-title">📊 Overview Keuangan</h1>
+          <p class="page-subtitle">Ringkasan performa Karim Gadget — <span id="ov-period">Bulan Ini</span></p>
+        </div>
+        <!-- Calendar Filter Widget — inserted by JS -->
+        <div id="ov-filter-wrap" style="min-width:280px"></div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card blue">
+          <div class="kpi-top"><span class="kpi-label">Saldo Kas</span><span class="kpi-icon">💰</span></div>
+          <div class="kpi-value" id="kpi-saldo">Rp 0</div>
+          <div class="kpi-sub">Saldo terakhir tercatat</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-top"><span class="kpi-label" id="kpi-masuk-label">Pemasukan</span><span class="kpi-icon">📈</span></div>
+          <div class="kpi-value" id="kpi-masuk">Rp 0</div>
+          <div class="kpi-sub" id="kpi-masuk-sub">-</div>
+        </div>
+        <div class="kpi-card red">
+          <div class="kpi-top"><span class="kpi-label" id="kpi-keluar-label">Pengeluaran</span><span class="kpi-icon">📉</span></div>
+          <div class="kpi-value" id="kpi-keluar">Rp 0</div>
+          <div class="kpi-sub" id="kpi-keluar-sub">-</div>
+        </div>
+      </div>
+
+      <div class="chart-card" style="margin-bottom:var(--space-xl);animation-delay:100ms">
+        <div class="chart-title">📊 Tren Saldo</div>
+        <div class="chart-h280"><canvas id="chart-trend"></canvas></div>
+      </div>
+
+      <div class="charts-equal">
+        <div class="chart-card" style="animation-delay:150ms">
+          <div class="chart-title">🥧 Distribusi Pemasukan</div>
+          <div class="chart-h280"><canvas id="chart-donut-income"></canvas></div>
+        </div>
+        <div class="chart-card" style="animation-delay:150ms">
+          <div class="chart-title">🥧 Distribusi Pengeluaran</div>
+          <div class="chart-h280"><canvas id="chart-donut"></canvas></div>
+        </div>
+      </div>
+
+      <div class="chart-card" style="margin-bottom:20px;animation-delay:200ms">
+        <div class="chart-title">🏆 Top Produk Terjual (Profit Kontribusi)</div>
+        <div class="chart-h260"><canvas id="chart-topproduct"></canvas></div>
+      </div>
+
+      <div class="card" style="animation-delay:250ms">
+        <div class="card-header">
+          <div class="card-title">📋 Transaksi Terbaru</div>
+          <button class="btn btn-secondary" onclick="App.go('transaksi')" style="font-size:12.5px;padding:7px 14px">Lihat Semua →</button>
+        </div>
+        <div class="table-wrap" id="recent-tx-wrap"></div>
+      </div>
+    </section>
+
+    <!-- =================== BUKU BESAR =================== -->
+    <section id="page-transaksi" class="page-section">
+      <div class="page-header">
+        <h1 class="page-title">📋 Buku Besar (Kas)</h1>
+        <p class="page-subtitle">Semua riwayat arus kas Karim Gadget</p>
+      </div>
+
+      <!-- Calendar Filter + Category + Search -->
+      <div class="filter-bar-v2">
+        <div id="tx-filter-wrap" style="flex:1;min-width:280px"></div>
+        <select class="filter-select" id="filter-kategori">
+          <option value="semua">Semua Kategori</option>
+        </select>
+        <div class="search-input-wrapper">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input type="text" class="filter-input" id="filter-search" placeholder="Cari transaksi...">
+        </div>
+      </div>
+
+      <div class="quick-stats">
+        <div class="qs-item"><div class="qs-label">Total Transaksi</div><div class="qs-val" id="qs-count">0</div></div>
+        <div class="qs-item"><div class="qs-label">Total Masuk</div><div class="qs-val green" id="qs-masuk">Rp 0</div></div>
+        <div class="qs-item"><div class="qs-label">Total Keluar</div><div class="qs-val red" id="qs-keluar">Rp 0</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📒 Riwayat Transaksi</div>
+          <button class="btn btn-secondary" style="font-size:12.5px;padding:7px 14px" onclick="App.exportTx()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Excel
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr>
+              <th onclick="App.sortTx('tanggal')">Tanggal <span id="tx-arr-tanggal">↓</span></th>
+              <th onclick="App.sortTx('deskripsi')">Deskripsi <span id="tx-arr-deskripsi">↕</span></th>
+              <th>Kategori</th>
+              <th onclick="App.sortTx('uangMasuk')">Uang Masuk <span id="tx-arr-uangMasuk">↕</span></th>
+              <th onclick="App.sortTx('uangKeluar')">Uang Keluar <span id="tx-arr-uangKeluar">↕</span></th>
+              <th onclick="App.sortTx('saldo')">Saldo <span id="tx-arr-saldo">↕</span></th>
+              <th style="width:80px">Aksi</th>
+            </tr></thead>
+            <tbody id="tx-tbody"></tbody>
+          </table>
+        </div>
+        <div class="card-footer">
+          <div class="page-info" id="tx-pinfo">–</div>
+          <div class="pagination" id="tx-pages"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== INPUT BARU =================== -->
+    <section id="page-input" class="page-section">
+      <div class="page-header">
+        <h1 class="page-title">✏️ Input Data Baru</h1>
+        <p class="page-subtitle">Catat transaksi kas, pembelian unit, atau penjualan unit HP</p>
+      </div>
+
+      <div class="input-tabs">
+        <button class="input-tab-btn active" data-tab="kas" onclick="App.switchInputTab('kas')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M12 6v6l4 2"/></svg>
+          💸 Transaksi Kas
+        </button>
+        <button class="input-tab-btn" data-tab="beli" onclick="App.switchInputTab('beli')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+          📦 Beli Unit HP
+        </button>
+        <button class="input-tab-btn" data-tab="jual" onclick="App.switchInputTab('jual')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/></svg>
+          🏷️ Jual Unit HP
+        </button>
+      </div>
+
+      <div class="form-wrap">
+
+        <!-- TAB KAS -->
+        <div class="input-tab-panel active" data-tab="kas">
+          <div class="card" style="padding:28px;box-shadow:var(--shadow-md)">
+            <form id="input-form">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label" for="f-tanggal">Tanggal <span class="req">*</span></label>
+                  <input type="date" class="form-input" id="f-tanggal" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="f-kategori">Kategori <span class="req">*</span></label>
+                  <select class="form-select" id="f-kategori" required>
+                    <option value="">Pilih kategori...</option>
+                    <option value="Penjualan Utama">📈 Penjualan Utama (Jual HP)</option>
+                    <option value="Pendapatan Lainnya">💸 Pendapatan Lainnya (Affiliate, dll)</option>
+                    <option value="Inventory">📦 HPP / Inventory (Beli HP)</option>
+                    <option value="Operasional">🏢 Biaya Operasional (Ads, Transport, dll)</option>
+                    <option value="Expensess">🏦 Biaya Bank & Administrasi</option>
+                    <option value="Ekuitas">⚖️ Ekuitas & Aset (Deviden, Investasi, dll)</option>
+                  </select>
+                </div>
+                <div class="form-group span2" style="position:relative">
+                  <label class="form-label" for="f-desc">Deskripsi <span class="req">*</span></label>
+                  <input type="text" class="form-input" id="f-desc" placeholder="cth: iPhone 15 Pro 128GB Natural Titanium iBox" autocomplete="off" required>
+                  <div class="autocomplete-dropdown" id="f-desc-ac" style="display:none"></div>
+                  <div class="form-hint">Ketik 2+ huruf untuk saran otomatis dari riwayat transaksi</div>
+                </div>
+                <div class="form-group" id="fg-qty">
+                  <label class="form-label" for="f-qty">Jumlah / Qty (Opsional)</label>
+                  <input type="text" class="form-input" id="f-qty" placeholder="Contoh: 2">
+                </div>
+                <div class="form-group" id="fg-masuk">
+                  <label class="form-label" for="f-masuk">Uang Masuk (Rp)</label>
+                  <input type="number" class="form-input" id="f-masuk" placeholder="0" min="0">
+                </div>
+                <div class="form-group" id="fg-keluar">
+                  <label class="form-label" for="f-keluar">Uang Keluar (Rp)</label>
+                  <input type="number" class="form-input" id="f-keluar" placeholder="0" min="0">
+                </div>
+                <div class="saldo-display" id="saldo-display">
+                  <div class="saldo-display-label">Saldo Kas Terakhir</div>
+                  <div class="saldo-display-val" id="f-saldo-val">–</div>
+                </div>
+              </div>
+              <div class="preview-box" id="preview-box">
+                <div class="preview-title">👁️ Preview Transaksi</div>
+                <div class="preview-row"><span class="preview-key">Kategori</span><span class="preview-val" id="pv-kat">–</span></div>
+                <div class="preview-row"><span class="preview-key">Uang Masuk</span><span class="preview-val" style="color:var(--green)" id="pv-masuk">–</span></div>
+                <div class="preview-row"><span class="preview-key">Uang Keluar</span><span class="preview-val" style="color:var(--red)" id="pv-keluar">–</span></div>
+                <hr class="preview-divider">
+                <div class="preview-row"><span class="preview-key">Saldo Setelah</span><span class="preview-val" style="color:var(--blue);font-family:'JetBrains Mono',monospace;font-size:15px" id="pv-saldo">–</span></div>
+              </div>
+              <div class="btn-group">
+                <button type="submit" class="btn btn-primary">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  Simpan Transaksi
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="App.resetForm()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                  Reset
+                </button>
+              </div>
+            </form>
+          </div>
+          <div class="shortcuts">
+            <div class="shortcuts-title">⚡ Transaksi Cepat</div>
+            <div class="shortcut-chips">
+              <button class="chip" type="button" onclick="App.quickFill('Biaya Bank','Expensess',0,2500)">Biaya Bank Rp2.500</button>
+              <button class="chip" type="button" onclick="App.quickFill('Biaya Bank','Expensess',0,4000)">Biaya Bank Rp4.000</button>
+              <button class="chip" type="button" onclick="App.quickFill('Biaya Bank','Expensess',0,5000)">Biaya Bank Rp5.000</button>
+              <button class="chip" type="button" onclick="App.quickFill('Operasional','Operasional',0,0)">Operasional</button>
+              <button class="chip" type="button" onclick="App.quickFill('Tiktok Ads','Operasional',0,0)">Tiktok Ads</button>
+              <button class="chip" type="button" onclick="App.quickFill('Affiliate Tiktok','Pendapatan Lainnya',0,0)">Affiliate Tiktok</button>
+              <button class="chip" type="button" onclick="App.quickFill('Deviden','Ekuitas',0,390000)">Deviden Rp390.000</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB BELI UNIT HP -->
+        <div class="input-tab-panel" data-tab="beli">
+          <div class="card" style="padding:28px;box-shadow:var(--shadow-md)">
+            <div class="form-section-title">📦 Input Pembelian Unit HP Baru</div>
+            <p class="form-section-sub">Mencatat unit HP yang dibeli ke daftar inventaris.</p>
+            <form id="buy-form">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label" for="f-buy-tanggal">Tanggal Masuk <span class="req">*</span></label>
+                  <input type="date" class="form-input" id="f-buy-tanggal" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="f-buy-nota">No. Nota / Referensi</label>
+                  <input type="text" class="form-input" id="f-buy-nota" placeholder="cth: 60">
+                </div>
+                <div class="form-group span2">
+                  <label class="form-label" for="f-buy-tipe">Tipe / Model HP <span class="req">*</span></label>
+                  <input type="text" class="form-input" id="f-buy-tipe" placeholder="cth: iPhone 15 Pro Natural Titanium 256 GB iBox" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="f-buy-harga-beli">Harga Beli (Rp) <span class="req">*</span></label>
+                  <input type="number" class="form-input" id="f-buy-harga-beli" placeholder="0" min="0" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="f-buy-keterangan">Keterangan</label>
+                  <input type="text" class="form-input" id="f-buy-keterangan" placeholder="opsional">
+                </div>
+              </div>
+              <div class="preview-box" id="buy-preview">
+                <div class="preview-title">👁️ Preview Pembelian</div>
+                <div class="preview-row"><span class="preview-key">Harga Beli</span><span class="preview-val" style="color:var(--red)" id="buy-pv-harga">–</span></div>
+              </div>
+              <div class="btn-group">
+                <button type="submit" class="btn btn-primary">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+                  Simpan Pembelian Unit
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- TAB JUAL UNIT HP -->
+        <div class="input-tab-panel" data-tab="jual">
+          <div class="card" style="padding:28px;box-shadow:var(--shadow-md)">
+            <div class="form-section-title">🏷️ Input Penjualan Unit HP</div>
+            <p class="form-section-sub">Pilih unit dari stok, masukkan harga jual untuk mencatat penjualan.</p>
+            <form id="sell-form">
+              <div class="form-grid">
+                <div class="form-group span2">
+                  <label class="form-label" for="f-sell-unit">Unit HP yang Dijual <span class="req">*</span></label>
+                  <select class="form-select" id="f-sell-unit" required>
+                    <option value="">Pilih unit yang dijual...</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="f-sell-tanggal">Tanggal Terjual <span class="req">*</span></label>
+                  <input type="date" class="form-input" id="f-sell-tanggal" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="f-sell-harga-jual">Harga Jual (Rp) <span class="req">*</span></label>
+                  <input type="number" class="form-input" id="f-sell-harga-jual" placeholder="0" min="0" required>
+                </div>
+                <div class="form-group span2">
+                  <label class="form-label" for="f-sell-keterangan">Keterangan</label>
+                  <input type="text" class="form-input" id="f-sell-keterangan" placeholder="opsional">
+                </div>
+              </div>
+              <div class="preview-box" id="sell-preview">
+                <div class="preview-title">👁️ Preview Penjualan</div>
+                <div class="preview-row"><span class="preview-key">Harga Beli</span><span class="preview-val" style="color:var(--red)" id="sell-pv-beli">–</span></div>
+                <div class="preview-row"><span class="preview-key">Harga Jual</span><span class="preview-val" style="color:var(--green)" id="sell-pv-jual">–</span></div>
+                <hr class="preview-divider">
+                <div class="preview-row"><span class="preview-key">Profit</span><span class="preview-val" id="sell-pv-profit">–</span></div>
+              </div>
+              <div class="btn-group">
+                <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,#10b981,#059669)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  Simpan Penjualan Unit
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =================== LAPORAN =================== -->
+    <section id="page-laporan" class="page-section">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+        <div>
+          <h1 class="page-title">📈 Laporan Keuangan</h1>
+          <p class="page-subtitle">Ringkasan performa keuangan — <span id="r-period-label">Semua Waktu</span></p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary" onclick="App.exportReportCSV()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export CSV
+          </button>
+          <button class="btn btn-primary" onclick="App.exportReportXLSX()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Excel
+          </button>
+        </div>
+      </div>
+
+      <!-- Calendar Filter & Grouping -->
+      <div class="filter-bar-v2" style="margin-bottom:20px; align-items:center; display:flex; flex-wrap:wrap; gap:12px;">
+        <div id="lap-filter-wrap" style="flex:1; min-width:250px;"></div>
+        <select id="lap-group-mode" class="form-select" style="width:160px; max-width:100%;" onchange="App._renderLaporan()">
+          <option value="hari">Per Hari</option>
+          <option value="minggu">Per Minggu</option>
+          <option value="bulan" selected>Per Bulan</option>
+          <option value="tahun">Per Tahun</option>
+          <option value="dasawarsa">Per Dasawarsa</option>
+        </select>
+      </div>
+
+      <!-- KPI: only Masuk & Keluar (no Net Profit) -->
+      <div class="report-kpi-grid-2">
+        <div class="report-kpi" style="animation-delay:0ms">
+          <div class="rk-label">Total Pemasukan</div>
+          <div class="rk-value green" id="r-masuk">Rp 0</div>
+        </div>
+        <div class="report-kpi" style="animation-delay:60ms">
+          <div class="rk-label">Total Pengeluaran</div>
+          <div class="rk-value red" id="r-keluar">Rp 0</div>
+        </div>
+      </div>
+
+      <div class="chart-card" style="animation-delay:100ms; margin-bottom: 20px;">
+        <div class="chart-title" id="lap-chart-title">📊 Pemasukan vs Pengeluaran</div>
+        <div class="chart-h300"><canvas id="chart-monthly-bars"></canvas></div>
+      </div>
+
+      <div class="card" style="animation-delay:200ms">
+        <div class="card-header">
+          <div class="card-title" id="lap-table-title">📅 Ringkasan Transaksi</div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr>
+              <th>Bulan</th>
+              <th>Jml Tx</th>
+              <th>Pemasukan</th>
+              <th>Pengeluaran</th>
+              <th>Saldo Akhir</th>
+            </tr></thead>
+            <tbody id="monthly-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== PENJUALAN PAGE ======== -->
+    <section id="page-penjualan" class="page-section">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+        <div>
+          <h1 class="page-title">Data Penjualan & Pembelian</h1>
+          <p class="page-subtitle">Riwayat unit HP — harga beli, harga jual, profit &amp; waktu putar</p>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="App.exportSales()" style="font-size:12.5px;padding:7px 14px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Excel
+          </button>
+        </div>
+      </div>
+
+      <!-- Sales Filter: Calendar + Search -->
+      <div class="filter-bar-v2">
+        <div id="sales-filter-wrap" style="flex:1;min-width:280px"></div>
+        <div class="search-input-wrapper">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input type="text" class="filter-input" id="sales-search" placeholder="Cari tipe/nota...">
+        </div>
+      </div>
+
+      <!-- Sales KPI Cards -->
+      <div class="sales-kpi-grid">
+        <div class="sales-kpi-card total-unit">
+          <div class="sales-kpi-label">📦 Terjual / Total Unit</div>
+          <div class="sales-kpi-value" id="sales-kpi-unit">0 / 0</div>
+          <div class="sales-kpi-sub">unit HP tercatat (bulan masuk)</div>
+        </div>
+        <div class="sales-kpi-card total-revenue">
+          <div class="sales-kpi-label">💰 Total Pendapatan Jual</div>
+          <div class="sales-kpi-value" id="sales-kpi-revenue">Rp 0</div>
+          <div class="sales-kpi-sub">dari unit yang sudah terjual</div>
+        </div>
+        <div class="sales-kpi-card avg-profit" style="background:linear-gradient(135deg,#10b981,#059669);">
+          <div class="sales-kpi-label" style="color:rgba(255,255,255,0.8)">✅ Total Profit</div>
+          <div class="sales-kpi-value" id="sales-kpi-total-profit" style="color:#fff">Rp 0</div>
+          <div class="sales-kpi-sub" style="color:rgba(255,255,255,0.7)">dari unit yang sudah terjual</div>
+        </div>
+        <div class="sales-kpi-card avg-profit">
+          <div class="sales-kpi-label">📊 Margin Profit</div>
+          <div class="sales-kpi-value" id="sales-kpi-margin">0%</div>
+          <div class="sales-kpi-sub">dari pendapatan jual</div>
+        </div>
+        <div class="sales-kpi-card avg-profit">
+          <div class="sales-kpi-label">📈 Rata-rata Profit/Unit</div>
+          <div class="sales-kpi-value" id="sales-kpi-avg-profit">Rp 0</div>
+          <div class="sales-kpi-sub">per unit terjual</div>
+        </div>
+        <div class="sales-kpi-card avg-turnover">
+          <div class="sales-kpi-label">⏱️ Rata-rata Waktu Putar</div>
+          <div class="sales-kpi-value" id="sales-kpi-turnover">- hari</div>
+          <div class="sales-kpi-sub">dari masuk ke terjual</div>
+        </div>
+      </div>
+
+      <!-- Sales Table -->
+      <div class="table-card">
+        <div class="table-header">
+          <div class="table-title"><span>🛒</span> Daftar Unit HP</div>
+        </div>
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Nota</th>
+                <th>Tanggal Masuk</th>
+                <th>Tanggal Keluar</th>
+                <th>Tipe / Model</th>
+                <th>Harga Beli</th>
+                <th>Harga Jual</th>
+                <th>Profit</th>
+                <th>Waktu Putar</th>
+                <th>Keterangan</th>
+                <th style="width:60px">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="sales-table-body"></tbody>
+          </table>
+        </div>
+        <div class="table-footer" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:12px 16px">
+          <div class="page-info" id="sales-page-info">Memuat data...</div>
+          <div class="pagination" id="sales-pages"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<!-- =================== MODAL EDIT TRANSAKSI =================== -->
+<div class="modal-overlay" id="modal-edit-tx" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">✏️ Edit Transaksi</div>
+      <button class="modal-close" onclick="closeModal('modal-edit-tx')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="etx-id">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Tanggal</label>
+          <input type="date" class="form-input" id="etx-tanggal">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Kategori</label>
+          <select class="form-select" id="etx-kategori">
+            <option value="Penjualan Utama">Penjualan Utama</option>
+            <option value="Pendapatan Lainnya">Pendapatan Lainnya</option>
+            <option value="HPP (Inventory)">HPP (Inventory)</option>
+            <option value="Biaya Operasional">Biaya Operasional</option>
+            <option value="Biaya Bank & Admin">Biaya Bank & Admin</option>
+            <option value="Ekuitas & Aset">Ekuitas & Aset</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
+        </div>
+        <div class="form-group span2">
+          <label class="form-label">Deskripsi</label>
+          <input type="text" class="form-input" id="etx-desc">
+        </div>
+        <div class="form-group span2">
+          <label class="form-label">Jumlah / Qty (Opsional)</label>
+          <input type="text" class="form-input" id="etx-qty">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Uang Masuk (Rp)</label>
+          <input type="number" class="form-input" id="etx-masuk" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Uang Keluar (Rp)</label>
+          <input type="number" class="form-input" id="etx-keluar" min="0">
+        </div>
+        <div class="form-group span2">
+          <label class="form-label">Saldo (Rp) — isi manual sesuai data Excel</label>
+          <input type="number" class="form-input" id="etx-saldo">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-edit-tx')">Batal</button>
+      <button class="btn btn-primary" onclick="App.saveTxEdit()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+        Simpan Perubahan
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- =================== MODAL EDIT PENJUALAN =================== -->
+<div class="modal-overlay" id="modal-edit-sale" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">✏️ Edit Data Penjualan / Unit</div>
+      <button class="modal-close" onclick="closeModal('modal-edit-sale')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="es-id">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">No. Nota</label>
+          <input type="text" class="form-input" id="es-nota">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tanggal Masuk</label>
+          <input type="date" class="form-input" id="es-tanggal-masuk">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tanggal Keluar (terjual)</label>
+          <input type="date" class="form-input" id="es-tanggal-keluar">
+        </div>
+        <div class="form-group span2">
+          <label class="form-label">Tipe / Model</label>
+          <input type="text" class="form-input" id="es-tipe">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Harga Beli (Rp)</label>
+          <input type="number" class="form-input" id="es-harga-beli" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Harga Jual (Rp)</label>
+          <input type="number" class="form-input" id="es-harga-jual" min="0">
+        </div>
+        <div class="form-group span2">
+          <div style="background:var(--bg-input);border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;color:var(--text-tertiary);font-weight:500">Profit (otomatis)</span>
+            <span id="es-profit-preview" style="font-size:16px;font-weight:700">–</span>
+          </div>
+        </div>
+        <div class="form-group span2">
+          <label class="form-label">Keterangan</label>
+          <input type="text" class="form-input" id="es-keterangan">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-edit-sale')">Batal</button>
+      <button class="btn btn-primary" onclick="App.saveSaleEdit()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+        Simpan Perubahan
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js?v=3.3.1"></script>
+</body>
+</html>
