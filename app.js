@@ -600,7 +600,7 @@ const Store = {
     return cats;
   },
 
-  getTopProducts(limit = 7, filter = null) {
+  getTopProducts(limit = 7, filter = null, sortBy = 'profit') {
     const map = {};
     const filteredSales = applyCalendarFilter(this._sales, 'tanggalKeluar', filter || { mode: 'semua' });
     filteredSales.forEach(s => {
@@ -612,7 +612,7 @@ const Store = {
       map[k].profit += s.profit || 0;
       map[k].count++;
     });
-    return Object.values(map).sort((a, b) => b.profit - a.profit).slice(0, limit);
+    return Object.values(map).sort((a, b) => b[sortBy] - a[sortBy]).slice(0, limit);
   },
 
   getLifetimeTotals() { return this.getStatsByFilter({ mode: 'semua' }); },
@@ -1039,18 +1039,48 @@ const Charts = {
     }
   },
 
-  renderTopProducts(products) {
+  renderTopProducts(products, mode = 'profit') {
     this.destroy('top');
     const ctx = el('chart-topproduct'); if (!ctx) return;
     const COLORS = ['#3b82f6', '#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
-    const d = this._defaults({ callbacks: { label: c => ` Profit: ${fmt(c.raw)} (${products[c.dataIndex].count}x)` } });
+    const titleEl = el('title-topproduct');
+    if (titleEl) titleEl.textContent = mode === 'count' ? '🏆 Top Produk Terjual (Jumlah)' : '🏆 Top Produk Terjual (Profit)';
+
+    const d = this._defaults({ 
+      callbacks: { 
+        label: c => mode === 'count' 
+          ? ` Terjual: ${products[c.dataIndex].count}x (Profit: ${fmt(products[c.dataIndex].profit)})` 
+          : ` Profit: ${fmt(c.raw)} (${products[c.dataIndex].count}x)` 
+      } 
+    });
     d.plugins.legend.display = false;
     this._c.top = new Chart(ctx, {
       type: 'bar', data: {
         labels: products.map(p => p.name.length > 35 ? p.name.substr(0, 33) + '…' : p.name),
-        datasets: [{ data: products.map(p => p.profit), backgroundColor: products.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 5 }]
+        datasets: [{ 
+          data: products.map(p => mode === 'count' ? p.count : p.profit), 
+          backgroundColor: products.map((_, i) => COLORS[i % COLORS.length]), 
+          borderRadius: 5 
+        }]
       },
-      options: { ...d, indexAxis: 'y', scales: { x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmtShort(v) } }, y: { grid: { display: false }, ticks: { color: '#334155', font: { family: 'Inter', size: 11 } } } } }
+      options: { 
+        ...d, 
+        indexAxis: 'y', 
+        scales: { 
+          x: { 
+            grid: { color: 'rgba(0,0,0,0.05)' }, 
+            ticks: { 
+              color: '#64748b', 
+              font: { family: 'JetBrains Mono', size: 11 }, 
+              callback: v => mode === 'count' ? v + 'x' : fmtShort(v) 
+            } 
+          }, 
+          y: { 
+            grid: { display: false }, 
+            ticks: { color: '#334155', font: { family: 'Inter', size: 11 } } 
+          } 
+        } 
+      }
     });
   },
 
@@ -1228,7 +1258,10 @@ const App = {
     Charts.renderTrend(trendData);
     Charts.renderDonut(Store.getCategorySpend(filter));
     if (Charts.renderIncomeDonut) Charts.renderIncomeDonut(Store.getIncomeSpend(filter));
-    Charts.renderTopProducts(Store.getTopProducts(7, filter));
+    
+    const topProdModeEl = el('topproduct-mode');
+    const topProdMode = topProdModeEl ? topProdModeEl.value : 'profit';
+    Charts.renderTopProducts(Store.getTopProducts(7, filter, topProdMode), topProdMode);
 
     const recent = Store.getTx({ filter, sortDir: 'desc' }).slice(0, 8);
     const wrap = el('recent-tx-wrap');
