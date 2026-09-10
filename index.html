@@ -89,10 +89,15 @@
         </div>
       </div>
 
-      <div class="charts-2col">
-        <div class="chart-card" style="animation-delay:100ms">
-          <div class="chart-title">📊 Tren Saldo</div>
-          <div class="chart-h280"><canvas id="chart-trend"></canvas></div>
+      <div class="chart-card" style="margin-bottom:var(--space-xl);animation-delay:100ms">
+        <div class="chart-title">📊 Tren Saldo</div>
+        <div class="chart-h280"><canvas id="chart-trend"></canvas></div>
+      </div>
+
+      <div class="charts-equal">
+        <div class="chart-card" style="animation-delay:150ms">
+          <div class="chart-title">🥧 Distribusi Pemasukan</div>
+          <div class="chart-h280"><canvas id="chart-donut-income"></canvas></div>
         </div>
         <div class="chart-card" style="animation-delay:150ms">
           <div class="chart-title">🥧 Distribusi Pengeluaran</div>
@@ -207,8 +212,8 @@
                   <label class="form-label" for="f-kategori">Kategori <span class="req">*</span></label>
                   <select class="form-select" id="f-kategori" required>
                     <option value="">Pilih kategori...</option>
-                    <option value="Pendapatan">📈 Penjualan Utama (Jual HP)</option>
-                    <option value="Pendapatan">💸 Pendapatan Lainnya (Affiliate, dll)</option>
+                    <option value="Penjualan Utama">📈 Penjualan Utama (Jual HP)</option>
+                    <option value="Pendapatan Lainnya">💸 Pendapatan Lainnya (Affiliate, dll)</option>
                     <option value="Inventory">📦 HPP / Inventory (Beli HP)</option>
                     <option value="Operasional">🏢 Biaya Operasional (Ads, Transport, dll)</option>
                     <option value="Expensess">🏦 Biaya Bank & Administrasi</option>
@@ -266,7 +271,7 @@
               <button class="chip" type="button" onclick="App.quickFill('Biaya Bank','Expensess',0,5000)">Biaya Bank Rp5.000</button>
               <button class="chip" type="button" onclick="App.quickFill('Operasional','Operasional',0,0)">Operasional</button>
               <button class="chip" type="button" onclick="App.quickFill('Tiktok Ads','Operasional',0,0)">Tiktok Ads</button>
-              <button class="chip" type="button" onclick="App.quickFill('Affiliate Tiktok','Pendapatan',0,0)">Affiliate Tiktok</button>
+              <button class="chip" type="button" onclick="App.quickFill('Affiliate Tiktok','Pendapatan Lainnya',0,0)">Affiliate Tiktok</button>
               <button class="chip" type="button" onclick="App.quickFill('Deviden','Ekuitas',0,390000)">Deviden Rp390.000</button>
             </div>
           </div>
