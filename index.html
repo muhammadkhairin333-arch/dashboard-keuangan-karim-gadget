@@ -384,10 +384,16 @@
         </div>
       </div>
 
-      <!-- Calendar Filter -->
-      <div class="filter-bar-v2" style="margin-bottom:20px">
-        <span style="font-size:13px;color:var(--text-muted);font-weight:600;white-space:nowrap">Filter KPI:</span>
-        <div id="lap-filter-wrap" style="flex:1"></div>
+      <!-- Calendar Filter & Grouping -->
+      <div class="filter-bar-v2" style="margin-bottom:20px; align-items:center; display:flex; flex-wrap:wrap; gap:12px;">
+        <div id="lap-filter-wrap" style="flex:1; min-width:250px;"></div>
+        <select id="lap-group-mode" class="form-select" style="width:160px; max-width:100%;" onchange="App._renderLaporan()">
+          <option value="hari">Per Hari</option>
+          <option value="minggu">Per Minggu</option>
+          <option value="bulan" selected>Per Bulan</option>
+          <option value="tahun">Per Tahun</option>
+          <option value="dasawarsa">Per Dasawarsa</option>
+        </select>
       </div>
 
       <!-- KPI: only Masuk & Keluar (no Net Profit) -->
@@ -403,13 +409,13 @@
       </div>
 
       <div class="chart-card" style="animation-delay:100ms; margin-bottom: 20px;">
-        <div class="chart-title">📊 Pemasukan vs Pengeluaran per Bulan (All Time)</div>
+        <div class="chart-title" id="lap-chart-title">📊 Pemasukan vs Pengeluaran</div>
         <div class="chart-h300"><canvas id="chart-monthly-bars"></canvas></div>
       </div>
 
       <div class="card" style="animation-delay:200ms">
         <div class="card-header">
-          <div class="card-title">📅 Ringkasan per Bulan (All Time)</div>
+          <div class="card-title" id="lap-table-title">📅 Ringkasan Transaksi</div>
         </div>
         <div class="table-wrap">
           <table class="data-table">
