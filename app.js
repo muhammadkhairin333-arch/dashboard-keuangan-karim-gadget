@@ -907,6 +907,12 @@ const Charts = {
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
     let msgEl = document.getElementById('donut-empty-msg');
+    const card = ctx.closest('.chart-card');
+    if (card) {
+      let oldLeg = card.querySelector('.custom-legend');
+      if (oldLeg) oldLeg.remove();
+    }
+
     if (!labels.length) {
       if (!msgEl) {
         msgEl = document.createElement('div');
@@ -921,13 +927,27 @@ const Charts = {
     }
     if (msgEl) msgEl.style.display = 'none';
     ctx.style.display = 'block';
+    
+    // Modify wrapper height to make space for custom legend without making the card too tall
+    wrapper.style.height = '230px';
+
     const d = this._defaults({ callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)}` } });
     this._c.donut = new Chart(ctx, {
       type: 'doughnut', data: {
         labels, datasets: [{ data: Object.values(cats), backgroundColor: labels.map(l => colors[l] || '#94a3b8'), borderWidth: 0, hoverOffset: 6 }]
       },
-      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { ...d.plugins.legend, position: 'bottom' } } }
+      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { display: false } } }
     });
+
+    if (card) {
+      const leg = document.createElement('div');
+      leg.className = 'custom-legend';
+      leg.style = 'display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin-top:20px; padding-top:16px; border-top:1px solid var(--border-subtle);';
+      labels.forEach(l => {
+        leg.innerHTML += `<div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary);"><span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#94a3b8'}"></span>${l}</div>`;
+      });
+      card.appendChild(leg);
+    }
   },
 
   renderIncomeDonut(cats) {
@@ -937,6 +957,12 @@ const Charts = {
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
     let msgEl = document.getElementById('donut-income-empty-msg');
+    const card = ctx.closest('.chart-card');
+    if (card) {
+      let oldLeg = card.querySelector('.custom-legend');
+      if (oldLeg) oldLeg.remove();
+    }
+
     if (!labels.length) {
       if (!msgEl) {
         msgEl = document.createElement('div');
@@ -951,13 +977,26 @@ const Charts = {
     }
     if (msgEl) msgEl.style.display = 'none';
     ctx.style.display = 'block';
+    
+    wrapper.style.height = '230px';
+
     const d = this._defaults({ callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)}` } });
     this._c.donutIncome = new Chart(ctx, {
       type: 'doughnut', data: {
         labels, datasets: [{ data: Object.values(cats), backgroundColor: labels.map(l => colors[l] || '#10b981'), borderWidth: 0, hoverOffset: 6 }]
       },
-      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { ...d.plugins.legend, position: 'bottom' } } }
+      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { display: false } } }
     });
+
+    if (card) {
+      const leg = document.createElement('div');
+      leg.className = 'custom-legend';
+      leg.style = 'display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin-top:20px; padding-top:16px; border-top:1px solid var(--border-subtle);';
+      labels.forEach(l => {
+        leg.innerHTML += `<div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary);"><span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#10b981'}"></span>${l}</div>`;
+      });
+      card.appendChild(leg);
+    }
   },
 
   renderTopProducts(products) {
