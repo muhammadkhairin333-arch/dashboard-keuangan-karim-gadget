@@ -509,12 +509,12 @@ const Store = {
 
   getStatsByFilter(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
-    let masuk = 0, keluar = 0;
+    let masuk = 0, keluar = 0, countMasuk = 0, countKeluar = 0;
     filtered.forEach(t => {
-      masuk += t.uangMasuk || 0;
-      keluar += t.uangKeluar || 0;
+      if ((t.uangMasuk || 0) > 0) { masuk += t.uangMasuk; countMasuk++; }
+      if ((t.uangKeluar || 0) > 0) { keluar += t.uangKeluar; countKeluar++; }
     });
-    return { masuk, keluar, profit: masuk - keluar, count: filtered.length };
+    return { masuk, keluar, profit: masuk - keluar, count: filtered.length, countMasuk, countKeluar };
   },
 
   getCategorySpend(filter) {
@@ -903,7 +903,7 @@ const Charts = {
   renderIncomeDonut(cats) {
     this.destroy('donutIncome');
     const ctx = el('chart-donut-income'); if (!ctx) return;
-    const colors = { 'Penjualan Utama': '#10b981', 'Pendapatan Lainnya': '#0ea5e9', 'Pendapatan': '#10b981' };
+    const colors = { 'Penjualan Utama': '#10b981', 'Pendapatan Lainnya': '#0ea5e9', 'Pendapatan': '#10b981', 'Ekuitas': '#ec4899' };
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
     let msgEl = document.getElementById('donut-income-empty-msg');
@@ -1102,8 +1102,13 @@ const App = {
       this._setChange('kpi-masuk-sub', stats.masuk, prevStats.masuk);
       this._setChange('kpi-keluar-sub', stats.keluar, prevStats.keluar);
     } else {
-      setText('kpi-masuk-sub', `${stats.count} transaksi`);
-      setText('kpi-keluar-sub', '–');
+      if (filter.mode === 'semua') {
+        setText('kpi-masuk-sub', `${stats.countMasuk} transaksi masuk`);
+        setText('kpi-keluar-sub', `${stats.countKeluar} transaksi keluar`);
+      } else {
+        setText('kpi-masuk-sub', `${stats.count} transaksi`);
+        setText('kpi-keluar-sub', '–');
+      }
     }
 
     const trendData = Store.getTrendStats(filter);
