@@ -232,14 +232,16 @@ const Store = {
 
       if (data && (data.transactions || data.sales)) {
         let skipped = 0;
-        // Proses data dari Google Sheets
-        const gsTx = (data.transactions || []).map((t, i) => {
+        // Proses data dari Google Sheets (Hanya ambil yang ada isi datanya)
+        const gsTx = (data.transactions || []).filter(t => {
+          return (t.uangMasuk > 0 || t.uangKeluar > 0 || (t.deskripsi && t.deskripsi.trim() !== '') || t.saldo > 0);
+        }).map((t, i) => {
           const tanggal = t.tanggal || '';
           const validTanggal = isValidDate(tanggal) ? tanggal : null;
-          if (!validTanggal && (t.deskripsi || t.uangMasuk || t.uangKeluar)) skipped++;
+          if (!validTanggal) skipped++;
           return {
             ...t,
-            sheetIndex: i,
+            sheetIndex: t.sheetIndex !== undefined ? t.sheetIndex : i, // Preserve original row index
             id: t.id || Math.random().toString(36).substr(2, 8),
             tanggal: validTanggal,
             kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''),
@@ -254,7 +256,13 @@ const Store = {
         pendingTx.forEach(p => {
           if (!this._transactions.find(t => t.id === p.id)) this._transactions.push(p);
         });
-        this._transactions.sort((a, b) => (a.tanggal || '').localeCompare(b.tanggal || ''));
+        
+        // Sort by tanggal, then by sheetIndex so same-day transactions maintain original sheet order!
+        this._transactions.sort((a, b) => {
+          const c = (a.tanggal || '').localeCompare(b.tanggal || '');
+          if (c !== 0) return c;
+          return (a.sheetIndex || 0) - (b.sheetIndex || 0);
+        });
         this._saveTxLocal();
 
         // Proses data penjualan
@@ -939,12 +947,19 @@ const Charts = {
       options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { display: false } } }
     });
 
+    // Build custom HTML legend with percentages
     if (card) {
       const leg = document.createElement('div');
       leg.className = 'custom-legend';
       leg.style = 'display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin-top:20px; padding-top:16px; border-top:1px solid var(--border-subtle);';
+      
+      let total = 0;
+      Object.values(cats).forEach(v => total += v);
+
       labels.forEach(l => {
-        leg.innerHTML += `<div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary);"><span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#94a3b8'}"></span>${l}</div>`;
+        const val = cats[l] || 0;
+        const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+        leg.innerHTML += `<div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary);"><span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#94a3b8'}"></span>${l} <span style="font-weight:700;color:var(--text-primary)">${pct}%</span></div>`;
       });
       card.appendChild(leg);
     }
@@ -992,8 +1007,14 @@ const Charts = {
       const leg = document.createElement('div');
       leg.className = 'custom-legend';
       leg.style = 'display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin-top:20px; padding-top:16px; border-top:1px solid var(--border-subtle);';
+      
+      let total = 0;
+      Object.values(cats).forEach(v => total += v);
+
       labels.forEach(l => {
-        leg.innerHTML += `<div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary);"><span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#10b981'}"></span>${l}</div>`;
+        const val = cats[l] || 0;
+        const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+        leg.innerHTML += `<div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary);"><span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#10b981'}"></span>${l} <span style="font-weight:700;color:var(--text-primary)">${pct}%</span></div>`;
       });
       card.appendChild(leg);
     }
