@@ -584,6 +584,7 @@ const Store = {
         cats[k] = (cats[k] || 0) + t.uangKeluar;
       }
     });
+    Object.keys(cats).forEach(k => { if (cats[k] <= 0) delete cats[k]; });
     return cats;
   },
 
@@ -597,6 +598,7 @@ const Store = {
         cats[k] = (cats[k] || 0) + t.uangMasuk;
       }
     });
+    Object.keys(cats).forEach(k => { if (cats[k] <= 0) delete cats[k]; });
     return cats;
   },
 
