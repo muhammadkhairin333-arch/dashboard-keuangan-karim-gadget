@@ -263,6 +263,19 @@ const Store = {
           if (c !== 0) return c;
           return (a.sheetIndex || 0) - (b.sheetIndex || 0);
         });
+
+        // Hitung Saldo secara berurutan agar 100% sinkron dan akurat (mengatasi rumus Google Sheet yang mungkin kosong/error)
+        let currentSaldo = 0;
+        this._transactions.forEach((t, i) => {
+          // Jika baris pertama memiliki saldo awal yang diinput manual, gunakan itu
+          if (i === 0 && t.saldo && !t.uangMasuk && !t.uangKeluar) {
+            currentSaldo = parseFloat(t.saldo);
+          } else {
+            currentSaldo += (t.uangMasuk || 0) - (t.uangKeluar || 0);
+          }
+          t.calcSaldo = currentSaldo;
+        });
+
         this._saveTxLocal();
 
         // Proses data penjualan
@@ -475,7 +488,12 @@ const Store = {
         const dayOfWeek = d.getDay() || 7;
         const monday = new Date(d);
         monday.setDate(d.getDate() - dayOfWeek + 1);
-        key = monday.toISOString().split('T')[0];
+        
+        // Gunakan getFullYear, getMonth, getDate agar tidak terkena pergeseran zona waktu UTC
+        const y = monday.getFullYear();
+        const m = String(monday.getMonth() + 1).padStart(2, '0');
+        const day = String(monday.getDate()).padStart(2, '0');
+        key = `${y}-${m}-${day}`;
         label = `Minggu ${fmtDateNum(key)}`;
       } else if (groupMode === 'bulan') {
         key = t.tanggal.substr(0, 7);
@@ -493,7 +511,7 @@ const Store = {
       if (!groups[key]) groups[key] = { sortKey: key, bulan: label, masuk: 0, keluar: 0, saldo: 0, count: 0 };
       groups[key].masuk += t.uangMasuk || 0;
       groups[key].keluar += t.uangKeluar || 0;
-      if (t.saldo) groups[key].saldo = t.saldo; // Saldo akhir di periode tersebut (approx)
+      groups[key].saldo = t.calcSaldo; // Selalu terupdate ke transaksi terakhir di periode ini
       groups[key].count++;
     });
     return Object.values(groups)
@@ -518,7 +536,7 @@ const Store = {
       if (!map[key]) map[key] = { label: groupByDay ? fmtDateNum(key) : fmtYearMonth(key), masuk: 0, keluar: 0, count: 0, saldo: 0 };
       map[key].masuk += t.uangMasuk || 0;
       map[key].keluar += t.uangKeluar || 0;
-      if (t.saldo != null) map[key].saldo = t.saldo;
+      if (t.calcSaldo != null) map[key].saldo = t.calcSaldo;
       map[key].count++;
     });
     return Object.keys(map).sort().map(k => ({
@@ -539,7 +557,7 @@ const Store = {
       if (!years[key]) years[key] = { tahun: key, masuk: 0, keluar: 0, saldo: 0, count: 0 };
       years[key].masuk += t.uangMasuk || 0;
       years[key].keluar += t.uangKeluar || 0;
-      if (t.saldo) years[key].saldo = t.saldo;
+      if (t.calcSaldo != null) years[key].saldo = t.calcSaldo;
       years[key].count++;
     });
     return Object.values(years).sort((a, b) => a.tahun.localeCompare(b.tahun)).map(y => ({ ...y, profit: y.masuk - y.keluar }));
@@ -547,12 +565,13 @@ const Store = {
 
   getStatsByFilter(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
-    let masuk = 0, keluar = 0, countMasuk = 0, countKeluar = 0;
+    let masuk = 0, keluar = 0, countMasuk = 0, countKeluar = 0, saldo = 0;
     filtered.forEach(t => {
       if ((t.uangMasuk || 0) > 0) { masuk += t.uangMasuk; countMasuk++; }
       if ((t.uangKeluar || 0) > 0) { keluar += t.uangKeluar; countKeluar++; }
+      if (t.calcSaldo != null) saldo = t.calcSaldo;
     });
-    return { masuk, keluar, profit: masuk - keluar, count: filtered.length, countMasuk, countKeluar };
+    return { masuk, keluar, profit: masuk - keluar, count: filtered.length, countMasuk, countKeluar, saldo };
   },
 
   getCategorySpend(filter) {
