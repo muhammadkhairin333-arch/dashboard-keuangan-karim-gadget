@@ -607,12 +607,36 @@ const Store = {
       if (!s.tanggalKeluar) return;
       const name = s.tipeModel || s.tipe || '';
       if (!name) return;
-      const k = name.replace(/\s*(iBox|Inter|inter|ibox)\s*/gi, ' ').replace(/\s*\(.*?\)\s*/g, '').trim();
-      if (!map[k]) map[k] = { name: k, profit: 0, count: 0 };
+      
+      let baseModel = name;
+      let detailStr = 'Lainnya';
+      const capMatch = name.search(/\b(?:64|128|256|512)\s*GB|\b1\s*TB\b/i);
+      
+      if (capMatch > -1) {
+        baseModel = name.substring(0, capMatch).trim();
+        detailStr = name.substring(capMatch).trim();
+      }
+      
+      baseModel = baseModel.replace(/\s*(iBox|Inter|inter|ibox|WIFI|Cellular|Wi-Fi)\s*/gi, ' ').replace(/\s*\(.*?\)\s*/g, '').trim();
+      const k = baseModel;
+
+      if (!map[k]) map[k] = { name: k, profit: 0, count: 0, details: {} };
       map[k].profit += s.profit || 0;
       map[k].count++;
+      
+      if (!map[k].details[detailStr]) map[k].details[detailStr] = { count: 0, profit: 0 };
+      map[k].details[detailStr].count++;
+      map[k].details[detailStr].profit += s.profit || 0;
     });
-    return Object.values(map).sort((a, b) => b[sortBy] - a[sortBy]).slice(0, limit);
+
+    const arr = Object.values(map);
+    arr.forEach(p => {
+       p.detailList = Object.entries(p.details)
+         .map(([nm, val]) => ({ nm, ...val }))
+         .sort((a,b) => b[sortBy] - a[sortBy]);
+    });
+
+    return arr.sort((a, b) => b[sortBy] - a[sortBy]).slice(0, limit);
   },
 
   getLifetimeTotals() { return this.getStatsByFilter({ mode: 'semua' }); },
@@ -1032,7 +1056,7 @@ const Charts = {
 
       labels.forEach(l => {
         const val = cats[l] || 0;
-        const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+        const pct = total > 0 ? parseFloat(((val / total) * 100).toFixed(1)) : 0;
         leg.innerHTML += `<div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary);"><span style="width:10px;height:10px;border-radius:50%;background:${colors[l]||'#10b981'}"></span>${l} <span style="font-weight:700;color:var(--text-primary)">${pct}%</span></div>`;
       });
       card.appendChild(leg);
@@ -1050,7 +1074,12 @@ const Charts = {
       callbacks: { 
         label: c => mode === 'count' 
           ? ` Terjual: ${products[c.dataIndex].count}x (Profit: ${fmt(products[c.dataIndex].profit)})` 
-          : ` Profit: ${fmt(c.raw)} (${products[c.dataIndex].count}x)` 
+          : ` Profit: ${fmt(c.raw)} (${products[c.dataIndex].count}x)`,
+        afterLabel: c => {
+          const p = products[c.dataIndex];
+          if (!p.detailList || (p.detailList.length <= 1 && p.detailList[0].nm === 'Lainnya')) return '';
+          return p.detailList.map(dt => `  • ${dt.nm}: ${mode === 'count' ? dt.count + 'x' : fmt(dt.profit)}`);
+        }
       } 
     });
     d.plugins.legend.display = false;
