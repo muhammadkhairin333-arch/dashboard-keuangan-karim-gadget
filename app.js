@@ -409,8 +409,14 @@ const Store = {
   },
 
   getLatestSaldo() {
-    const sorted = [...this._transactions].filter(t => t.saldo && isValidDate(t.tanggal)).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-    return sorted.length ? sorted[sorted.length - 1].saldo : 0;
+    const valid = this._transactions.filter(t => t.saldo != null);
+    if (!valid.length) return 0;
+    
+    let latest = valid[0];
+    for (const t of valid) {
+      if ((t.sheetIndex || 0) >= (latest.sheetIndex || 0)) latest = t;
+    }
+    return latest.saldo;
   },
 
   getDescriptions() {
