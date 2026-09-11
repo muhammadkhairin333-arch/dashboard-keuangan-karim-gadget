@@ -35,7 +35,7 @@ const fmtDateNum = (s) => {
 const el = (id) => document.getElementById(id);
 const setText = (id, v) => { const e = el(id); if (e) e.textContent = v; };
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbxgw5ZDN4wqNWkVSZKl2pQv7AhcT6UppW0V80I7vbxtcYXKmzH9L85V-CfFihKFtfnX/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzY3DgRFtl6zA-8jHGXvuisb_iFibh8kit-XIriSiRoEYfZvFr4W4IPAsAV4o3_kx1V/exec';
 
 const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const BULAN_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -219,6 +219,7 @@ function catBadge(kat) {
 const Store = {
   _transactions: [],
   _sales: [],
+  _networth: [],
   _invalidDates: 0,
 
   async init() {
@@ -298,6 +299,10 @@ const Store = {
         });
         this._saveSalesLocal();
 
+        // Load Net Worth data
+        this._networth = data.networth || [];
+        this._saveNetworthLocal();
+
         loaded = true;
         toast('✅ Tersinkronisasi dengan Google Sheets!', 'success');
       }
@@ -339,7 +344,20 @@ const Store = {
           return { ...s, id: s.id || Math.random().toString(36).substr(2, 8), notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
         });
       }
+
+      const cachedNw = localStorage.getItem('kg_nw_cache');
+      if (cachedNw) {
+        try { this._networth = JSON.parse(cachedNw); } catch { this._networth = []; }
+      } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.networth) {
+        this._networth = INITIAL_DATA.networth || [];
+      } else {
+        this._networth = [];
+      }
     }
+  },
+
+  _saveNetworthLocal() {
+    try { localStorage.setItem('kg_nw_cache', JSON.stringify(this._networth)); } catch (e) {}
   },
 
   // ---- Local Storage — Transaksi Kas ----
@@ -959,6 +977,86 @@ const Charts = {
     };
   },
 
+  renderNetWorth(data, granularity = 'harian') {
+    this.destroy('networth');
+    const ctx = el('chart-networth'); if (!ctx || !data || !data.length) return;
+
+    let result = [];
+    if (granularity === 'harian') {
+      result = data.slice(-30).map(d => ({
+        label: fmtDateNum(d.tanggal),
+        kas: d.kas, stok: d.stok, networth: d.networth
+      }));
+    } else if (granularity === 'mingguan') {
+      const map = {};
+      data.forEach(d => {
+        const date = new Date(d.tanggal + 'T00:00:00');
+        const day = date.getDay();
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+        const weekStart = new Date(date.setDate(diff));
+        const weekKey = weekStart.toISOString().split('T')[0];
+        map[weekKey] = { label: `Mgg ${fmtDateNum(weekKey).substr(0, 5)}`, kas: d.kas, stok: d.stok, networth: d.networth };
+      });
+      result = Object.keys(map).sort().map(k => map[k]);
+    } else if (granularity === 'bulanan') {
+      const map = {};
+      data.forEach(d => {
+        const monthKey = d.tanggal.substr(0, 7);
+        map[monthKey] = { label: fmtYearMonth(monthKey), kas: d.kas, stok: d.stok, networth: d.networth };
+      });
+      result = Object.keys(map).sort().map(k => map[k]);
+    }
+
+    const d = this._defaults({
+      callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.raw)}` }
+    });
+    d.plugins.legend.display = true;
+
+    this._c.networth = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: result.map(r => r.label),
+        datasets: [
+          {
+            type: 'line',
+            label: 'Net Worth',
+            data: result.map(r => r.networth),
+            borderColor: '#f59e0b',
+            backgroundColor: '#f59e0b',
+            borderWidth: 2.5,
+            tension: 0.3,
+            pointRadius: 3,
+            fill: false,
+            order: 0
+          },
+          {
+            type: 'bar',
+            label: 'Stok Aset',
+            data: result.map(r => r.stok),
+            backgroundColor: '#3b82f6',
+            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+            order: 1
+          },
+          {
+            type: 'bar',
+            label: 'Kas (Liquid)',
+            data: result.map(r => r.kas),
+            backgroundColor: '#10b981',
+            borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 4, bottomRight: 4 },
+            order: 2
+          }
+        ]
+      },
+      options: {
+        ...d,
+        scales: {
+          x: { stacked: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } } },
+          y: { stacked: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmtShort(v) } }
+        }
+      }
+    });
+  },
+
   renderTrend(months) {
     this.destroy('trend');
     const ctx = el('chart-trend'); if (!ctx) return;
@@ -1362,6 +1460,10 @@ const App = {
     Charts.renderTrend(trendData);
     Charts.renderDonut(Store.getCategorySpend(filter));
     if (Charts.renderIncomeDonut) Charts.renderIncomeDonut(Store.getIncomeSpend(filter));
+
+    const nwTimeframeEl = el('nw-timeframe');
+    const nwTimeframe = nwTimeframeEl ? nwTimeframeEl.value : 'harian';
+    if (Charts.renderNetWorth) Charts.renderNetWorth(Store._networth, nwTimeframe);
     
     const topProdModeEl = el('topproduct-mode');
     const topProdMode = topProdModeEl ? topProdModeEl.value : 'profit';
