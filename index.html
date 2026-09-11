@@ -89,6 +89,7 @@
         </div>
       </div>
 
+
       <div class="chart-card" style="margin-bottom:var(--space-xl);animation-delay:100ms">
         <div class="chart-title">📊 Tren Saldo</div>
         <div class="chart-h280"><canvas id="chart-trend"></canvas></div>
@@ -412,6 +413,18 @@
           <div class="rk-label">Total Pengeluaran</div>
           <div class="rk-value red" id="r-keluar">Rp 0</div>
         </div>
+      </div>
+
+      <div class="chart-card" style="margin-bottom:20px;animation-delay:100ms">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div class="chart-title" style="margin-bottom:0;">📈 Net Worth Growth</div>
+          <select id="nw-timeframe" class="form-input" style="width:130px; font-size:13px; padding:6px 12px; margin-bottom:0;" onchange="App._renderLaporan()">
+            <option value="harian">Harian</option>
+            <option value="mingguan">Mingguan</option>
+            <option value="bulanan">Bulanan</option>
+          </select>
+        </div>
+        <div class="chart-h280"><canvas id="chart-networth"></canvas></div>
       </div>
 
       <div class="chart-card" style="animation-delay:100ms; margin-bottom: 20px;">
