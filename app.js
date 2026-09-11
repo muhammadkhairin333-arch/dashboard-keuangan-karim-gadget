@@ -1132,17 +1132,27 @@ const Charts = {
     const titleEl = el('title-topproduct');
     if (titleEl) titleEl.textContent = mode === 'count' ? '🏆 Top Produk (Terjual)' : '🏆 Top Produk (Profit)';
 
+    const isMobile = window.innerWidth < 600;
+    const shortFmt = (v) => {
+      if (Math.abs(v) >= 1000000) return 'Rp ' + (v / 1000000).toFixed(1).replace('.0', '') + 'jt';
+      if (Math.abs(v) >= 1000) return 'Rp ' + (v / 1000).toFixed(0) + 'rb';
+      return fmt(v);
+    };
+
     const d = this._defaults({ 
+      titleFont: { family: 'Inter', size: isMobile ? 11 : 12, weight: '700' },
+      bodyFont: { family: 'JetBrains Mono', size: isMobile ? 10 : 12 },
+      padding: isMobile ? 8 : 12,
       callbacks: { 
         label: c => mode === 'count' 
-          ? ` Terjual: ${products[c.dataIndex].count}x (Profit: ${fmt(products[c.dataIndex].profit)})` 
+          ? ` Terjual: ${products[c.dataIndex].count}x (Profit: ${shortFmt(products[c.dataIndex].profit)})` 
           : ` Profit: ${fmt(c.raw)} (${products[c.dataIndex].count}x)`,
         afterLabel: c => {
           const p = products[c.dataIndex];
           if (!p.detailList || (p.detailList.length <= 1 && p.detailList[0].nm === 'Lainnya')) return '';
           return p.detailList.map(dt => {
             const shortName = dt.nm.replace(/titanium/gi, 'T.');
-            return `  • ${shortName}: ${mode === 'count' ? dt.count + 'x' : fmt(dt.profit)}`;
+            return `  • ${shortName}: ${mode === 'count' ? dt.count + 'x' : shortFmt(dt.profit)}`;
           });
         }
       } 
