@@ -982,38 +982,45 @@ const Charts = {
     const ctx = el('chart-networth'); if (!ctx || !data || !data.length) return;
 
     let result = [];
+    const safeData = data.filter(d => d.tanggal && isValidDate(d.tanggal));
+    
     if (granularity === 'harian' || granularity === 'hari') {
-      result = data.map(d => ({
+      result = safeData.map(d => ({
         label: fmtDateNum(d.tanggal),
         kas: d.kas, stok: d.stok, networth: d.networth
       }));
     } else if (granularity === 'mingguan' || granularity === 'minggu') {
       const map = {};
-      data.forEach(d => {
+      safeData.forEach(d => {
         const date = new Date(d.tanggal + 'T00:00:00');
-        const day = date.getDay();
-        const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-        const weekStart = new Date(date.setDate(diff));
-        const weekKey = weekStart.toISOString().split('T')[0];
+        const dayOfWeek = date.getDay() || 7;
+        const monday = new Date(date);
+        monday.setDate(date.getDate() - dayOfWeek + 1);
+        
+        const y = monday.getFullYear();
+        const m = String(monday.getMonth() + 1).padStart(2, '0');
+        const day = String(monday.getDate()).padStart(2, '0');
+        const weekKey = `${y}-${m}-${day}`;
+        
         map[weekKey] = { label: `Mgg ${fmtDateNum(weekKey).substr(0, 5)}`, kas: d.kas, stok: d.stok, networth: d.networth };
       });
       result = Object.keys(map).sort().map(k => map[k]);
     } else if (granularity === 'bulanan' || granularity === 'bulan') {
       const map = {};
-      data.forEach(d => {
+      safeData.forEach(d => {
         const monthKey = d.tanggal.substr(0, 7);
         map[monthKey] = { label: fmtYearMonth(monthKey), kas: d.kas, stok: d.stok, networth: d.networth };
       });
       result = Object.keys(map).sort().map(k => map[k]);
     } else if (granularity === 'tahun') {
       const map = {};
-      data.forEach(d => {
+      safeData.forEach(d => {
         const yearKey = d.tanggal.substr(0, 4);
         map[yearKey] = { label: yearKey, kas: d.kas, stok: d.stok, networth: d.networth };
       });
       result = Object.keys(map).sort().map(k => map[k]);
     } else {
-      result = data.map(d => ({ label: fmtDateNum(d.tanggal), kas: d.kas, stok: d.stok, networth: d.networth }));
+      result = safeData.map(d => ({ label: fmtDateNum(d.tanggal), kas: d.kas, stok: d.stok, networth: d.networth }));
     }
 
     const d = this._defaults({
