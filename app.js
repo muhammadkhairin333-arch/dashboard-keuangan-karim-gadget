@@ -600,10 +600,9 @@ const Store = {
   getCategorySpend(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     const cats = {};
-    const validExpense = ['HPP (Inventory)', 'Biaya Operasional', 'Biaya Bank & Admin', 'Ekuitas & Aset'];
     filtered.forEach(t => {
       if ((t.uangKeluar || 0) > 0) {
-        const k = validExpense.includes(t.kategori) ? t.kategori : 'Lainnya';
+        const k = t.kategori || 'Lainnya';
         cats[k] = (cats[k] || 0) + t.uangKeluar;
       }
     });
@@ -614,10 +613,9 @@ const Store = {
   getIncomeSpend(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     const cats = {};
-    const validIncome = ['Penjualan Utama', 'Pendapatan Lainnya', 'Ekuitas & Aset'];
     filtered.forEach(t => {
       if ((t.uangMasuk || 0) > 0) {
-        const k = validIncome.includes(t.kategori) ? t.kategori : 'Lainnya';
+        const k = t.kategori || 'Lainnya';
         cats[k] = (cats[k] || 0) + t.uangMasuk;
       }
     });
