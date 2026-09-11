@@ -56,7 +56,7 @@ const fmtYearMonth = (ym) => {
 // ============ CALENDAR FILTER HELPER ============
 function applyCalendarFilter(arr, field, filter) {
   const { mode, year, month, start, end } = filter || {};
-  if (!mode || mode === 'semua') return arr;
+  if (!mode || mode === 'semua') return [...arr];
   return arr.filter(item => {
     const val = item[field];
     if (!val || !isValidDate(val)) return false;
