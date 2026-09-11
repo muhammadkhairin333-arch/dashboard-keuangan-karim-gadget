@@ -1460,10 +1460,6 @@ const App = {
     Charts.renderTrend(trendData);
     Charts.renderDonut(Store.getCategorySpend(filter));
     if (Charts.renderIncomeDonut) Charts.renderIncomeDonut(Store.getIncomeSpend(filter));
-
-    const nwTimeframeEl = el('nw-timeframe');
-    const nwTimeframe = nwTimeframeEl ? nwTimeframeEl.value : 'harian';
-    if (Charts.renderNetWorth) Charts.renderNetWorth(Store._networth, nwTimeframe);
     
     const topProdModeEl = el('topproduct-mode');
     const topProdMode = topProdModeEl ? topProdModeEl.value : 'profit';
@@ -1996,6 +1992,11 @@ const App = {
     if (tableTitle) tableTitle.textContent = `📅 Ringkasan ${groupName} ${ext}`;
 
     Charts.renderMonthlyBars(grouped);
+
+    const nwTimeframeEl = el('nw-timeframe');
+    const nwTimeframe = nwTimeframeEl ? nwTimeframeEl.value : 'harian';
+    const filteredNw = applyCalendarFilter(Store._networth, 'tanggal', filter);
+    if (Charts.renderNetWorth) Charts.renderNetWorth(filteredNw, nwTimeframe);
 
     const tbody = el('monthly-tbody');
     if (tbody) {
