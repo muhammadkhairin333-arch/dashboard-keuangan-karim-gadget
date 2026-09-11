@@ -1130,7 +1130,7 @@ const Charts = {
     const ctx = el('chart-topproduct'); if (!ctx) return;
     const COLORS = ['#3b82f6', '#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
     const titleEl = el('title-topproduct');
-    if (titleEl) titleEl.textContent = mode === 'count' ? '🏆 Top Produk Terjual (Jumlah)' : '🏆 Top Produk Terjual (Profit)';
+    if (titleEl) titleEl.textContent = mode === 'count' ? '🏆 Top Produk (Terjual)' : '🏆 Top Produk (Profit)';
 
     const d = this._defaults({ 
       callbacks: { 
