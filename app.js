@@ -21,13 +21,13 @@ const fmtShort = (n) => {
 };
 const fmtDate = (s) => {
   if (!s) return '–';
-  try { return new Date(s + (s.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  try { return new Date(s.replace(/-/g, '/') + (s.length === 10 ? ' 00:00:00' : '')).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }); }
   catch { return s; }
 };
 const fmtDateNum = (s) => {
   if (!s) return '–';
   try {
-    const d = new Date(s + (s.length === 10 ? 'T00:00:00' : ''));
+    const d = new Date(s.replace(/-/g, '/') + (s.length === 10 ? ' 00:00:00' : ''));
     if (isNaN(d)) return s;
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   } catch { return s; }
@@ -43,7 +43,7 @@ const BULAN_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Se
 // Validate tanggal format YYYY-MM-DD
 const isValidDate = (s) => {
   if (!s || typeof s !== 'string') return false;
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T00:00:00').getTime());
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s.replace(/-/g, '/') + ' 00:00:00').getTime());
 };
 
 // Format YYYY-MM to "Agustus 2026"
@@ -60,7 +60,7 @@ function applyCalendarFilter(arr, field, filter) {
   return arr.filter(item => {
     const val = item[field];
     if (!val || !isValidDate(val)) return false;
-    const d = new Date(val + 'T00:00:00');
+    const d = new Date(val.replace(/-/g, '/') + ' 00:00:00');
     if (mode === 'hariini') {
       const today = new Date().toISOString().split('T')[0];
       return val === today;
@@ -79,7 +79,7 @@ function applyCalendarFilter(arr, field, filter) {
       const lastMonday = new Date(monday);
       lastMonday.setDate(monday.getDate() - 7);
 
-      const itemDate = new Date(val + 'T00:00:00');
+      const itemDate = new Date(val.replace(/-/g, '/') + ' 00:00:00');
       if (mode === 'mingguini') return itemDate >= monday && itemDate < nextMonday;
       if (mode === 'minggulalu') return itemDate >= lastMonday && itemDate < monday;
     }
@@ -99,15 +99,15 @@ function applyCalendarFilter(arr, field, filter) {
       monday.setHours(0, 0, 0, 0);
       const nextMonday = new Date(monday);
       nextMonday.setDate(monday.getDate() + 7);
-      const itemDate = new Date(val + 'T00:00:00');
+      const itemDate = new Date(val.replace(/-/g, '/') + ' 00:00:00');
       return itemDate >= monday && itemDate < nextMonday;
     }
     if (mode === 'bulan') return d.getFullYear() === parseInt(year) && d.getMonth() === parseInt(month) - 1;
     if (mode === 'tahun') return d.getFullYear() === parseInt(year);
     if (mode === 'custom') {
       if (!start && !end) return false;
-      const from = start ? new Date(start + 'T00:00:00') : new Date('2000-01-01');
-      const to = end ? new Date(end + 'T23:59:59') : new Date('2099-12-31');
+      const from = start ? new Date(start.replace(/-/g, '/') + ' 00:00:00') : new Date('2000/01/01');
+      const to = end ? new Date(end.replace(/-/g, '/') + ' 23:59:59') : new Date('2099/12/31');
       return d >= from && d <= to;
     }
     return true;
@@ -143,7 +143,7 @@ function filterLabel(filter) {
 function getPrevFilter(f) {
   if (f.mode === 'hari') {
     if (!f.date) return null;
-    const d = new Date(f.date + 'T00:00:00');
+    const d = new Date(f.date.replace(/-/g, '/') + ' 00:00:00');
     d.setDate(d.getDate() - 1);
     return { mode: 'hari', date: d.toISOString().split('T')[0] };
   }
@@ -167,8 +167,8 @@ function getPrevFilter(f) {
   }
   if (f.mode === 'custom') {
     if (!f.start || !f.end) return null;
-    const s = new Date(f.start + 'T00:00:00');
-    const e = new Date(f.end + 'T00:00:00');
+    const s = new Date(f.start.replace(/-/g, '/') + ' 00:00:00');
+    const e = new Date(f.end.replace(/-/g, '/') + ' 00:00:00');
     const diff = e - s;
     const prevE = new Date(s.getTime() - 86400000);
     const prevS = new Date(prevE.getTime() - diff);
@@ -276,7 +276,7 @@ const Store = {
           const validKeluar = isValidDate(s.tanggalKeluar) ? s.tanggalKeluar : null;
           let turnoverDays = null;
           if (validMasuk && validKeluar) {
-            const days = Math.round((new Date(validKeluar + 'T00:00:00') - new Date(validMasuk + 'T00:00:00')) / 86400000);
+            const days = Math.round((new Date(validKeluar.replace(/-/g, '/') + ' 00:00:00') - new Date(validMasuk.replace(/-/g, '/') + ' 00:00:00')) / 86400000);
             turnoverDays = days >= 0 ? days : null;
           }
           return {
@@ -338,7 +338,7 @@ const Store = {
           const validKeluar = isValidDate(s.tanggalKeluar) ? s.tanggalKeluar : null;
           let turnoverDays = null;
           if (validMasuk && validKeluar) {
-            const days = Math.round((new Date(validKeluar + 'T00:00:00') - new Date(validMasuk + 'T00:00:00')) / 86400000);
+            const days = Math.round((new Date(validKeluar.replace(/-/g, '/') + ' 00:00:00') - new Date(validMasuk.replace(/-/g, '/') + ' 00:00:00')) / 86400000);
             turnoverDays = days >= 0 ? days : null;
           }
           return { ...s, id: s.id || Math.random().toString(36).substr(2, 8), notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
@@ -501,7 +501,7 @@ const Store = {
     filtered.forEach(t => {
       if (!t.tanggal || !isValidDate(t.tanggal)) return;
       let key = '', label = '';
-      const d = new Date(t.tanggal + 'T00:00:00');
+      const d = new Date(t.tanggal.replace(/-/g, '/') + ' 00:00:00');
       
       if (groupMode === 'hari') {
         key = t.tanggal;
@@ -751,7 +751,7 @@ const Store = {
     if (idx === -1) return false;
     const merged = { ...this._sales[idx], ...updates };
     if (merged.tanggalMasuk && merged.tanggalKeluar && isValidDate(merged.tanggalMasuk) && isValidDate(merged.tanggalKeluar)) {
-      const days = Math.round((new Date(merged.tanggalKeluar + 'T00:00:00') - new Date(merged.tanggalMasuk + 'T00:00:00')) / 86400000);
+      const days = Math.round((new Date(merged.tanggalKeluar.replace(/-/g, '/') + ' 00:00:00') - new Date(merged.tanggalMasuk.replace(/-/g, '/') + ' 00:00:00')) / 86400000);
       merged.turnoverDays = days >= 0 ? days : null;
     }
     if (merged.hargaBeli != null && merged.hargaJual != null) {
@@ -992,7 +992,7 @@ const Charts = {
     } else if (granularity === 'mingguan' || granularity === 'minggu') {
       const map = {};
       safeData.forEach(d => {
-        const date = new Date(d.tanggal + 'T00:00:00');
+        const date = new Date(d.tanggal.replace(/-/g, '/') + ' 00:00:00');
         const dayOfWeek = date.getDay() || 7;
         const monday = new Date(date);
         monday.setDate(date.getDate() - dayOfWeek + 1);
