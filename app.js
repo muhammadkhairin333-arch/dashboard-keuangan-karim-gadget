@@ -195,20 +195,20 @@ function mapCategory(raw = '', desc = '') {
     if (/iphone|ipad|jual|pelunasan|dp|tablet|laptop|aksesoris|samsung|xiaomi|oppo|vivo|realme/.test(d) || k === 'Penjualan Utama') return 'Penjualan Utama';
     return 'Pendapatan Lainnya';
   }
-  if (k === 'HPP (Inventory)' || k === 'Inventory' || k === 'Invenroty') return 'Inventory';
-  if (k === 'Biaya Operasional' || k === 'Operasional' || k === 'Expenses') return 'Operasional';
+  if (k === 'HPP (Inventory)' || k === 'Inventory' || k === 'Invenroty') return 'HPP (Inventory)';
+  if (k === 'Biaya Operasional' || k === 'Operasional' || k === 'Expenses') return 'Biaya Operasional';
   if (k === 'Biaya Bank & Admin' || k === 'Expensess' || k === 'Biaya Bank' || k === 'Biaya Admin Bank') return 'Biaya Bank & Admin';
-  if (k === 'Ekuitas & Aset' || k === 'Ekuitas' || k === 'Deviden' || k === 'Investasi' || k === 'Equity') return 'Ekuitas';
+  if (k === 'Ekuitas & Aset' || k === 'Ekuitas' || k === 'Deviden' || k === 'Investasi' || k === 'Equity') return 'Ekuitas & Aset';
   return k || 'Lainnya';
 }
 
 const BADGE_CLASS = {
   'Penjualan Utama': 'badge badge-penjualan',
   'Pendapatan Lainnya': 'badge badge-pendapatan-lain',
-  'Inventory': 'badge badge-hpp',
-  'Operasional': 'badge badge-operasional',
+  'HPP (Inventory)': 'badge badge-hpp',
+  'Biaya Operasional': 'badge badge-operasional',
   'Biaya Bank & Admin': 'badge badge-bank',
-  'Ekuitas': 'badge badge-ekuitas',
+  'Ekuitas & Aset': 'badge badge-ekuitas',
   'Lainnya': 'badge badge-lainnya'
 };
 function catBadge(kat) {
@@ -600,7 +600,7 @@ const Store = {
   getCategorySpend(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     const cats = {};
-    const validExpense = ['Inventory', 'Operasional', 'Biaya Bank & Admin', 'Ekuitas'];
+    const validExpense = ['HPP (Inventory)', 'Biaya Operasional', 'Biaya Bank & Admin', 'Ekuitas & Aset'];
     filtered.forEach(t => {
       if ((t.uangKeluar || 0) > 0) {
         const k = validExpense.includes(t.kategori) ? t.kategori : 'Lainnya';
@@ -614,7 +614,7 @@ const Store = {
   getIncomeSpend(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     const cats = {};
-    const validIncome = ['Penjualan Utama', 'Pendapatan Lainnya', 'Ekuitas'];
+    const validIncome = ['Penjualan Utama', 'Pendapatan Lainnya', 'Ekuitas & Aset'];
     filtered.forEach(t => {
       if ((t.uangMasuk || 0) > 0) {
         const k = validIncome.includes(t.kategori) ? t.kategori : 'Lainnya';
@@ -1102,7 +1102,7 @@ const Charts = {
   renderDonut(cats) {
     this.destroy('donut');
     const ctx = el('chart-donut'); if (!ctx) return;
-    const colors = { 'Inventory': '#ef4444', 'Operasional': '#f59e0b', 'Biaya Bank & Admin': '#8b5cf6', 'Ekuitas': '#ec4899', 'Pendapatan': '#10b981', 'Lainnya': '#94a3b8' };
+    const colors = { 'HPP (Inventory)': '#ef4444', 'Biaya Operasional': '#f59e0b', 'Biaya Bank & Admin': '#8b5cf6', 'Ekuitas & Aset': '#be185d', 'Penjualan Utama': '#10b981', 'Pendapatan Lainnya': '#0f766e', 'Lainnya': '#475569' };
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
     let msgEl = document.getElementById('donut-empty-msg');
@@ -1847,7 +1847,7 @@ const App = {
   _updateMoneyFields() {
     const kat = el('f-kategori') ? el('f-kategori').value : '';
     const income = ['Penjualan Utama', 'Pendapatan Lainnya'];
-    const expense = ['Inventory', 'Operasional', 'Biaya Bank & Admin'];
+    const expense = ['HPP (Inventory)', 'Biaya Operasional', 'Biaya Bank & Admin'];
     if (el('fg-masuk')) el('fg-masuk').style.display = expense.includes(kat) ? 'none' : 'flex';
     if (el('fg-keluar')) el('fg-keluar').style.display = income.includes(kat) ? 'none' : 'flex';
     if (income.includes(kat) && el('f-keluar')) el('f-keluar').value = '';
