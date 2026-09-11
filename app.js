@@ -1019,6 +1019,15 @@ const Charts = {
         map[yearKey] = { label: yearKey, kas: d.kas, stok: d.stok, networth: d.networth };
       });
       result = Object.keys(map).sort().map(k => map[k]);
+    } else if (granularity === 'dasawarsa') {
+      const map = {};
+      safeData.forEach(d => {
+        const year = parseInt(d.tanggal.substr(0, 4), 10);
+        const decade = Math.floor(year / 10) * 10;
+        const decKey = String(decade);
+        map[decKey] = { label: `Era ${decade}an`, kas: d.kas, stok: d.stok, networth: d.networth };
+      });
+      result = Object.keys(map).sort().map(k => map[k]);
     } else {
       result = safeData.map(d => ({ label: fmtDateNum(d.tanggal), kas: d.kas, stok: d.stok, networth: d.networth }));
     }
