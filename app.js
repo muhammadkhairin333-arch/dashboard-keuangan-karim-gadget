@@ -977,17 +977,17 @@ const Charts = {
     };
   },
 
-  renderNetWorth(data, granularity = 'harian') {
+  renderNetWorth(data, granularity = 'hari') {
     this.destroy('networth');
     const ctx = el('chart-networth'); if (!ctx || !data || !data.length) return;
 
     let result = [];
-    if (granularity === 'harian') {
-      result = data.slice(-30).map(d => ({
+    if (granularity === 'harian' || granularity === 'hari') {
+      result = data.map(d => ({
         label: fmtDateNum(d.tanggal),
         kas: d.kas, stok: d.stok, networth: d.networth
       }));
-    } else if (granularity === 'mingguan') {
+    } else if (granularity === 'mingguan' || granularity === 'minggu') {
       const map = {};
       data.forEach(d => {
         const date = new Date(d.tanggal + 'T00:00:00');
@@ -998,13 +998,22 @@ const Charts = {
         map[weekKey] = { label: `Mgg ${fmtDateNum(weekKey).substr(0, 5)}`, kas: d.kas, stok: d.stok, networth: d.networth };
       });
       result = Object.keys(map).sort().map(k => map[k]);
-    } else if (granularity === 'bulanan') {
+    } else if (granularity === 'bulanan' || granularity === 'bulan') {
       const map = {};
       data.forEach(d => {
         const monthKey = d.tanggal.substr(0, 7);
         map[monthKey] = { label: fmtYearMonth(monthKey), kas: d.kas, stok: d.stok, networth: d.networth };
       });
       result = Object.keys(map).sort().map(k => map[k]);
+    } else if (granularity === 'tahun') {
+      const map = {};
+      data.forEach(d => {
+        const yearKey = d.tanggal.substr(0, 4);
+        map[yearKey] = { label: yearKey, kas: d.kas, stok: d.stok, networth: d.networth };
+      });
+      result = Object.keys(map).sort().map(k => map[k]);
+    } else {
+      result = data.map(d => ({ label: fmtDateNum(d.tanggal), kas: d.kas, stok: d.stok, networth: d.networth }));
     }
 
     const d = this._defaults({
@@ -1993,10 +2002,11 @@ const App = {
 
     Charts.renderMonthlyBars(grouped);
 
-    const nwTimeframeEl = el('nw-timeframe');
-    const nwTimeframe = nwTimeframeEl ? nwTimeframeEl.value : 'harian';
+    const nwTitle = document.getElementById('nw-chart-title');
+    if (nwTitle) nwTitle.textContent = `📈 Net Worth Growth ${groupName} ${ext}`;
+
     const filteredNw = applyCalendarFilter(Store._networth, 'tanggal', filter);
-    if (Charts.renderNetWorth) Charts.renderNetWorth(filteredNw, nwTimeframe);
+    if (Charts.renderNetWorth) Charts.renderNetWorth(filteredNw, groupMode);
 
     const tbody = el('monthly-tbody');
     if (tbody) {
