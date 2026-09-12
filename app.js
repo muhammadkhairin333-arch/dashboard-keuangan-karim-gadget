@@ -37,6 +37,96 @@ const setText = (id, v) => { const e = el(id); if (e) e.textContent = v; };
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbzY3DgRFtl6zA-8jHGXvuisb_iFibh8kit-XIriSiRoEYfZvFr4W4IPAsAV4o3_kx1V/exec';
 
+// ============ API FETCH WRAPPER ============
+const apiFetch = async (url, options = {}, timeout = 10000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  
+  const bustUrl = new URL(url);
+  bustUrl.searchParams.append('_t', new Date().getTime());
+  
+  const finalOptions = {
+    ...options,
+    cache: 'no-store',
+    signal: controller.signal
+  };
+  
+  try {
+    const res = await fetch(bustUrl.toString(), finalOptions);
+    clearTimeout(id);
+    return res;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+};
+
+// ============ AUTHENTICATION & RBAC ============
+const Auth = {
+  user: null,
+  init() {
+    const stored = localStorage.getItem('kg_auth_user');
+    if (stored) {
+      try { this.user = JSON.parse(stored); } catch(e) {}
+    }
+    
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+      loginForm.onsubmit = (e) => {
+        e.preventDefault();
+        this.login();
+      };
+    }
+  },
+
+  async login() {
+    const userEl = document.getElementById('login-username');
+    const passEl = document.getElementById('login-password');
+    const btn = document.getElementById('login-btn');
+    const alertEl = document.getElementById('login-alert');
+    
+    if (!userEl || !passEl) return;
+    
+    const u = userEl.value.trim().toLowerCase();
+    const p = passEl.value;
+    
+    btn.textContent = 'Memeriksa...';
+    btn.disabled = true;
+    alertEl.style.display = 'none';
+    
+    let role = '';
+    if (u === 'admin' && p === 'admin123') role = 'ADMIN';
+    else if ((u === 'khairin' && p === 'khairin123') || (u === 'ridho' && p === 'ridho123')) role = 'OWNER';
+    else if (u === 'user' && p === 'user123') role = 'USER';
+    
+    if (role) {
+      this.user = { username: u, role: role };
+      localStorage.setItem('kg_auth_user', JSON.stringify(this.user));
+      await App.init();
+    } else {
+      alertEl.textContent = 'Username atau password salah!';
+      alertEl.style.display = 'block';
+      btn.textContent = 'Sign In';
+      btn.disabled = false;
+    }
+  },
+  
+  logout() {
+    localStorage.removeItem('kg_auth_user');
+    this.user = null;
+    window.location.reload();
+  },
+
+  hasAccess(page) {
+    if (!this.user) return false;
+    const r = this.user.role;
+    if (r === 'ADMIN') return true;
+    if (r === 'USER') return page === 'input';
+    if (r === 'OWNER') return ['overview', 'transaksi', 'penjualan', 'laporan'].includes(page);
+    return false;
+  }
+};
+
 const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const BULAN_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
@@ -222,12 +312,99 @@ const Store = {
   _networth: [],
   _invalidDates: 0,
 
+  _CACHE_TTL_MS: 5 * 60 * 1000,
+
+  _isCacheStale() {
+    const ts = parseInt(localStorage.getItem('kg_cache_ts') || '0', 10);
+    return (Date.now() - ts) > this._CACHE_TTL_MS;
+  },
+
+  _stampCache() {
+    localStorage.setItem('kg_cache_ts', String(Date.now()));
+  },
+
   async init() {
-    toast('⏳ Menghubungkan ke Google Sheets...', 'info');
+    const loader = document.getElementById('global-loader');
+    const hasCacheTx    = !!localStorage.getItem('kg_tx_cache');
+    const hasCacheSales = !!localStorage.getItem('kg_sales_cache');
+    const hasCacheNw    = !!localStorage.getItem('kg_nw_cache');
+
+    if (hasCacheTx) {
+      try { this._transactions = JSON.parse(localStorage.getItem('kg_tx_cache')); } catch { this._transactions = []; }
+    } else if (typeof INITIAL_DATA !== 'undefined') {
+      const rawInitTx = Array.isArray(INITIAL_DATA) ? INITIAL_DATA : (INITIAL_DATA.transactions || []);
+      let skipped = 0;
+      this._transactions = rawInitTx.map((t, i) => {
+        const tanggal = t.tanggal || '';
+        const validTanggal = isValidDate(tanggal) ? tanggal : null;
+        if (!validTanggal && (t.deskripsi || t.uangMasuk || t.uangKeluar)) skipped++;
+        return { ...t, sheetIndex: i, id: t.id || Math.random().toString(36).substr(2, 8), tanggal: validTanggal, kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''), kategoriRaw: t.kategori || '' };
+      }).filter(t => t.tanggal !== null);
+      this._invalidDates = skipped;
+    }
+
+    if (hasCacheSales) {
+      try { this._sales = JSON.parse(localStorage.getItem('kg_sales_cache')); } catch { this._sales = []; }
+    } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.sales) {
+      this._sales = INITIAL_DATA.sales.map(s => {
+        const validMasuk = isValidDate(s.tanggalMasuk) ? s.tanggalMasuk : null;
+        const validKeluar = isValidDate(s.tanggalKeluar) ? s.tanggalKeluar : null;
+        let turnoverDays = null;
+        if (validMasuk && validKeluar) {
+          const days = Math.round((new Date(validKeluar + 'T00:00:00') - new Date(validMasuk + 'T00:00:00')) / 86400000);
+          turnoverDays = days >= 0 ? days : null;
+        }
+        return { ...s, id: s.id || Math.random().toString(36).substr(2, 8), notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
+      });
+    }
+
+    if (hasCacheNw) {
+      try { this._networth = JSON.parse(localStorage.getItem('kg_nw_cache')); } catch { this._networth = []; }
+    } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.networth) {
+      this._networth = INITIAL_DATA.networth || [];
+    }
+
+    const hasLocalData = this._transactions.length > 0 || this._sales.length > 0;
+    const cacheStale = this._isCacheStale();
+    
+    if (hasLocalData) {
+      if (loader) {
+        loader.classList.add('fade-out');
+        setTimeout(() => loader.style.display = 'none', 300);
+      }
+      if (typeof App !== 'undefined' && App._rendered) {
+        App.render();
+      }
+    } else {
+      if (loader) {
+        loader.style.display = 'flex';
+        loader.classList.remove('fade-out');
+        const retryBtn = document.getElementById('loader-retry-btn');
+        if (retryBtn) retryBtn.style.display = 'none';
+        const spinner = document.querySelector('.spinner');
+        if (spinner) spinner.style.display = 'block';
+        const lText = document.getElementById('loader-text');
+        if (lText) lText.textContent = 'Memuat Data...';
+        const lSub = document.getElementById('loader-subtext');
+        if (lSub) lSub.textContent = 'Sinkronisasi pertama dari server...';
+      }
+    }
+
+    if (hasLocalData && !cacheStale) {
+      toast('✅ Data sudah terkini (cache segar)', 'info');
+      return;
+    }
+
+    if (hasLocalData) {
+      toast('🔄 Memperbarui data dari server...', 'info');
+    } else {
+      toast('⏳ Menghubungkan ke Google Sheets...', 'info');
+    }
+
     let loaded = false;
 
     try {
-      const res = await fetch(API_URL, { redirect: 'follow' });
+      const res = await apiFetch(API_URL, { redirect: 'follow' }, 15000);
       if (!res.ok) throw new Error('HTTP error: ' + res.status);
       const data = await res.json();
 
@@ -1386,30 +1563,115 @@ const App = {
   overview: { filter: { mode: 'bulan', year: String(new Date().getFullYear()), month: new Date().getMonth() + 1 } },
   laporan: { filter: { mode: 'semua' } },
   inputTab: 'kas',
+  _rendered: false,
+  _activePage: 'overview',
+
+  render() {
+    if (!this._rendered) return;
+    const renderers = {
+      overview: () => this._renderOverview(),
+      transaksi: () => this._renderTx(),
+      penjualan: () => this._renderSales(),
+      input: () => this._renderInput(),
+      laporan: () => this._renderLaporan()
+    };
+    (renderers[this._activePage] || (() => {}))();
+    setText('badge-tx', Store._transactions.length);
+  },
 
   async init() {
+    Auth.init();
+    
+    if (!Auth.user) {
+      const loginContainer = document.getElementById('login-container');
+      const dashContainer = document.getElementById('dashboard-container');
+      if (loginContainer) loginContainer.style.display = 'flex';
+      if (dashContainer) dashContainer.style.display = 'none';
+      return; 
+    }
+    
+    const loginContainer = document.getElementById('login-container');
+    const dashContainer = document.getElementById('dashboard-container');
+    if (loginContainer) loginContainer.style.display = 'none';
+    if (dashContainer) dashContainer.style.display = 'block';
+    
+    const u = Auth.user;
+    const navAvatar = document.getElementById('nav-avatar');
+    const navUsername = document.getElementById('nav-username');
+    const navRoleBadge = document.getElementById('nav-role-badge');
+    if (navAvatar)    navAvatar.textContent    = u.username.charAt(0).toUpperCase();
+    if (navUsername)  navUsername.textContent  = u.username.charAt(0).toUpperCase() + u.username.slice(1);
+    if (navRoleBadge) {
+      navRoleBadge.textContent = u.role;
+      navRoleBadge.className   = 'nav-role-badge ' + u.role.toLowerCase();
+    }
+    
+    document.querySelectorAll('.nav-link[data-page]').forEach(btn => {
+      if (!Auth.hasAccess(btn.dataset.page)) {
+        btn.remove();
+      }
+    });
+
+    if (u.role === 'USER') {
+      document.body.classList.add('user-mode');
+      const chip = document.getElementById('nav-user-chip');
+      if (chip) chip.style.display = 'none';
+    }
+
     await Store.init();
     this._setupNav();
     this._setupCalendarFilters();
     this._setupTxFilters();
     this._setupForm();
     this._setupModals();
-    this.go('overview');
+    
+    this._rendered = true;
+
+    if (u.role === 'USER') {
+      this.go('input');
+    } else {
+      this.go('overview');
+    }
+    
     setText('badge-tx', Store._transactions.length);
     if (Store._invalidDates > 0) {
       setTimeout(() => toast(`⚠️ ${Store._invalidDates} baris dengan tanggal tidak valid dilewati.`, 'error'), 500);
     }
+
+    if (this._autoRefreshTimer) clearInterval(this._autoRefreshTimer);
+    this._autoRefreshTimer = setInterval(async () => {
+      if (document.hidden) return;
+      await Store.init();
+    }, 5 * 60 * 1000);
   },
 
   _setupNav() {
     document.querySelectorAll('.nav-link[data-page]').forEach(btn => {
-      btn.onclick = (e) => { e.preventDefault(); this.go(btn.dataset.page); };
+      btn.onclick = (e) => {
+        e.preventDefault();
+        this.go(btn.dataset.page);
+        const menu = el('navMenu');
+        if (menu) menu.classList.remove('show');
+      };
     });
     const navToggle = el('navToggle');
     if (navToggle) navToggle.onclick = () => el('navMenu').classList.toggle('show');
+    
+    document.addEventListener('click', (e) => {
+      const menu = el('navMenu');
+      const toggle = el('navToggle');
+      if (menu && toggle && !menu.contains(e.target) && !toggle.contains(e.target)) {
+        menu.classList.remove('show');
+      }
+    }, true);
   },
 
   go(page) {
+    if (!Auth.hasAccess(page)) {
+      toast('Akses Ditolak: Anda tidak memiliki izin untuk halaman ini.', 'error');
+      return;
+    }
+    this._activePage = page;
     document.querySelectorAll('.nav-link[data-page]').forEach(b => b.classList.toggle('active', b.dataset.page === page));
     document.querySelectorAll('.page-section').forEach(s => s.classList.toggle('active', s.id === `page-${page}`));
     window.scrollTo({ top: 0, behavior: 'smooth' });
