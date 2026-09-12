@@ -2431,3 +2431,52 @@ body::before {
   background-color: var(--accent-indigo);
   transform: scale(0.98);
 }
+
+/* ===================== GLOBAL LOADER ===================== */
+.global-loader {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+.global-loader.fade-out {
+  opacity: 0;
+  visibility: hidden;
+}
+.loader-content {
+  text-align: center;
+  padding: 2.5rem;
+  background: #FFFFFF;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+  max-width: 320px;
+  width: 90%;
+}
+.loader-content h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.25rem;
+  color: #111827;
+}
+.loader-content p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #6B7280;
+}
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #E5E7EB;
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
