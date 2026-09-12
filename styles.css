@@ -1570,12 +1570,13 @@ body::before {
   background: currentColor;
 }
 
-.badge-penjualan { background: rgba(5,150,105,0.1); color: #047857; border: 1px solid rgba(5,150,105,0.2); }
-.badge-lainnya { background: rgba(217,119,6,0.1); color: #b45309; border: 1px solid rgba(217,119,6,0.2); }
-.badge-hpp { background: rgba(220,38,38,0.1); color: #b91c1c; border: 1px solid rgba(220,38,38,0.2); }
-.badge-operasional { background: rgba(139,92,246,0.1); color: #6d28d9; border: 1px solid rgba(139,92,246,0.2); }
-.badge-bank { background: rgba(37,99,235,0.1); color: #1d4ed8; border: 1px solid rgba(37,99,235,0.2); }
-.badge-ekuitas { background: rgba(100,116,139,0.1); color: #475569; border: 1px solid rgba(100,116,139,0.2); }
+.badge-penjualan { background: rgba(16,185,129,0.15); color: #10B981; border: 1px solid rgba(16,185,129,0.3); }
+.badge-lainnya { background: rgba(59,130,246,0.15); color: #3B82F6; border: 1px solid rgba(59,130,246,0.3); }
+.badge-hpp { background: rgba(239,68,68,0.15); color: #EF4444; border: 1px solid rgba(239,68,68,0.3); }
+.badge-operasional { background: rgba(249,115,22,0.15); color: #F97316; border: 1px solid rgba(249,115,22,0.3); }
+.badge-bank { background: rgba(234,179,8,0.15); color: #EAB308; border: 1px solid rgba(234,179,8,0.3); }
+.badge-ekuitas { background: rgba(236,72,153,0.15); color: #EC4899; border: 1px solid rgba(236,72,153,0.3); }
+.badge-slate { background: rgba(100,116,139,0.15); color: #64748B; border: 1px solid rgba(100,116,139,0.3); }
 
 /* Table cell color variants */
 .cell-in { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 13px; color: var(--color-income); }
@@ -2179,6 +2180,10 @@ body.user-mode .nav-user-chip { display: none !important; }
     justify-content: center;
     flex: 1;
     color: var(--text-tertiary);
+  }
+  
+  .nav-mobile-logout {
+    display: flex !important;
   }
   
   .nav-link svg {
