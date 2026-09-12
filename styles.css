@@ -2161,6 +2161,9 @@ body::before {
 body.user-mode .nav-user-chip { display: none !important; }
 body.user-mode .navbar-menu { display: none !important; }
 
+/* Tombol Keluar di bottom nav: SELALU hidden di desktop */
+.nav-logout-mobile { display: none !important; }
+
 /* ---- Mobile Critical Bug Fixes & Bottom Nav ---- */
 @media (max-width: 768px) {
   /* === LAYOUT === */
@@ -2224,21 +2227,22 @@ body.user-mode .navbar-menu { display: none !important; }
     padding: 0 4px;
   }
 
-  /* === NAV-RIGHT: tampilkan hanya logout button, sembunyikan chip === */
-  .nav-right {
+  /* === NAV-RIGHT: sembunyikan di mobile (logout sudah ada di bottom nav) === */
+  .nav-right { display: none !important; }
+
+  /* === BOTTOM NAV LOGOUT BUTTON (hanya mobile) === */
+  .nav-logout-mobile {
     display: flex !important;
-    margin-left: auto;
-    gap: 4px;
+    color: #ef4444 !important;
+    flex: 0 0 auto;
+    min-width: 56px;
+    padding: 6px 2px;
   }
-  .nav-user-chip { display: none !important; }
-  /* Nav-logout di mobile: compact, hanya icon */
-  .nav-logout span { display: none; }
-  .nav-logout {
-    padding: 7px 10px;
-    border-radius: 10px;
-    font-size: 12px;
-  }
-  .nav-logout svg { width: 18px; height: 18px; }
+  .nav-logout-mobile svg { stroke: #ef4444; }
+  .nav-logout-mobile span { color: #ef4444; font-size: 10px; }
+  /* User-mode: tetap tampilkan bottom nav + tombol keluar */
+  body.user-mode .navbar-menu { display: flex !important; }
+  body.user-mode .nav-logout-mobile { display: flex !important; }
 
   /* === FORM LAYOUT: 1 kolom di mobile === */
   .form-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
