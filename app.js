@@ -371,38 +371,14 @@ const Store = {
     const hasLocalData = this._transactions.length > 0 || this._sales.length > 0;
     const cacheStale = this._isCacheStale();
     
-    if (hasLocalData) {
-      if (loader) {
-        loader.classList.add('fade-out');
-        setTimeout(() => loader.style.display = 'none', 300);
-      }
-      if (typeof App !== 'undefined' && App._rendered) {
-        App.render();
-      }
-    } else {
-      if (loader) {
-        loader.style.display = 'flex';
-        loader.classList.remove('fade-out');
-        const retryBtn = document.getElementById('loader-retry-btn');
-        if (retryBtn) retryBtn.style.display = 'none';
-        const spinner = document.querySelector('.spinner');
-        if (spinner) spinner.style.display = 'block';
-        const lText = document.getElementById('loader-text');
-        if (lText) lText.textContent = 'Memuat Data...';
-        const lSub = document.getElementById('loader-subtext');
-        if (lSub) lSub.textContent = 'Sinkronisasi pertama dari server...';
-      }
+    // Jika sudah ada data lokal dan App._rendered, refresh tampilan
+    if (hasLocalData && typeof App !== 'undefined' && App._rendered) {
+      App.render();
     }
 
+    // Jika cache masih segar, tidak perlu fetch lagi
     if (hasLocalData && !cacheStale) {
-      toast('✅ Data sudah terkini (cache segar)', 'info');
-      return;
-    }
-
-    if (hasLocalData) {
-      toast('🔄 Memperbarui data dari server...', 'info');
-    } else {
-      toast('⏳ Menghubungkan ke Google Sheets...', 'info');
+      return; // Cache masih valid, selesai
     }
 
     let loaded = false;
@@ -485,15 +461,18 @@ const Store = {
         this._saveNetworthLocal();
 
         loaded = true;
-        toast('✅ Tersinkronisasi dengan Google Sheets!', 'success');
+        this._stampCache();
+        // Re-render jika dashboard sudah tampil
+        if (typeof App !== 'undefined' && App._rendered) {
+          App.render();
+        }
       }
     } catch (e) {
       console.warn('[KG] Gagal fetch dari Google Sheets:', e.message);
     }
 
-    // Fallback: load dari localStorage cache, lalu INITIAL_DATA
+    // Fallback offline: gunakan cache atau INITIAL_DATA secara silent
     if (!loaded) {
-      toast('📴 Offline — memuat data tersimpan...', 'error');
       const cachedTx = localStorage.getItem('kg_tx_cache');
       const cachedSales = localStorage.getItem('kg_sales_cache');
 
@@ -1594,11 +1573,24 @@ const App = {
       return; 
     }
     
+    // ---- Step 1: Sembunyikan login, tampilkan loader full-screen ----
     const loginContainer = document.getElementById('login-container');
     const dashContainer = document.getElementById('dashboard-container');
+    const loader = document.getElementById('global-loader');
     if (loginContainer) loginContainer.style.display = 'none';
-    if (dashContainer) dashContainer.style.display = 'block';
+    // Dashboard BELUM ditampilkan — loader dulu
+    if (dashContainer) dashContainer.style.display = 'none';
+    if (loader) {
+      loader.style.display = 'flex';
+      loader.style.opacity = '1';
+      loader.classList.remove('fade-out');
+      const lText = document.getElementById('loader-text');
+      const lSub = document.getElementById('loader-subtext');
+      if (lText) lText.textContent = 'Memuat Data...';
+      if (lSub) lSub.textContent = 'Sinkronisasi dari Google Sheets...';
+    }
     
+    // ---- Step 2: Setup identitas user (navbar, role) ----
     const u = Auth.user;
     const navAvatar = document.getElementById('nav-avatar');
     const navUsername = document.getElementById('nav-username');
@@ -1611,9 +1603,7 @@ const App = {
     }
     
     document.querySelectorAll('.nav-link[data-page]').forEach(btn => {
-      if (!Auth.hasAccess(btn.dataset.page)) {
-        btn.remove();
-      }
+      if (!Auth.hasAccess(btn.dataset.page)) btn.remove();
     });
 
     if (u.role === 'USER') {
@@ -1625,6 +1615,7 @@ const App = {
       this._activePage = 'overview';
     }
 
+    // ---- Step 3: Fetch data (loader tampil selama ini) ----
     await Store.init();
     this._setupNav();
     this._setupCalendarFilters();
@@ -1634,11 +1625,19 @@ const App = {
     
     this._rendered = true;
 
+    // ---- Step 4: Data siap — sembunyikan loader, tampilkan dashboard ----
+    if (loader) {
+      loader.classList.add('fade-out');
+      setTimeout(() => { loader.style.display = 'none'; }, 350);
+    }
+    if (dashContainer) dashContainer.style.display = 'block';
+
+    // ---- Step 5: Route ke halaman yang benar ----
     this.go(this._activePage);
     
     setText('badge-tx', Store._transactions.length);
     if (Store._invalidDates > 0) {
-      setTimeout(() => toast(`⚠️ ${Store._invalidDates} baris dengan tanggal tidak valid dilewati.`, 'error'), 500);
+      setTimeout(() => toast(`⚠️ ${Store._invalidDates} baris tanggal tidak valid dilewati.`, 'error'), 500);
     }
 
     if (this._autoRefreshTimer) clearInterval(this._autoRefreshTimer);
