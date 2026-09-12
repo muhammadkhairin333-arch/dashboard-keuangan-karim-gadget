@@ -37,6 +37,31 @@ const setText = (id, v) => { const e = el(id); if (e) e.textContent = v; };
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbzY3DgRFtl6zA-8jHGXvuisb_iFibh8kit-XIriSiRoEYfZvFr4W4IPAsAV4o3_kx1V/exec';
 
+// ============ API FETCH WRAPPER ============
+const apiFetch = async (url, options = {}, timeout = 10000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  
+  // Bust Cache
+  const bustUrl = new URL(url);
+  bustUrl.searchParams.append('_t', new Date().getTime());
+  
+  const finalOptions = {
+    ...options,
+    cache: 'no-store',
+    signal: controller.signal
+  };
+  
+  try {
+    const res = await fetch(bustUrl.toString(), finalOptions);
+    clearTimeout(id);
+    return res;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+};
+
 // ============ AUTHENTICATION & RBAC ============
 const Auth = {
   user: null,
@@ -293,11 +318,22 @@ const Store = {
   _invalidDates: 0,
 
   async init() {
+    const loader = document.getElementById('global-loader');
+    if (loader) {
+      loader.style.display = 'flex';
+      loader.classList.remove('fade-out');
+      document.getElementById('loader-retry-btn').style.display = 'none';
+      const spinner = document.querySelector('.spinner');
+      if (spinner) spinner.style.display = 'block';
+      document.getElementById('loader-text').textContent = 'Memuat Data...';
+      document.getElementById('loader-subtext').textContent = 'Sinkronisasi terbaru dari server';
+    }
+
     toast('⏳ Menghubungkan ke Google Sheets...', 'info');
     let loaded = false;
 
     try {
-      const res = await fetch(API_URL, { redirect: 'follow' });
+      const res = await apiFetch(API_URL, { redirect: 'follow' }, 10000);
       if (!res.ok) throw new Error('HTTP error: ' + res.status);
       const data = await res.json();
 
@@ -375,9 +411,22 @@ const Store = {
 
         loaded = true;
         toast('✅ Tersinkronisasi dengan Google Sheets!', 'success');
+        
+        if (loader) {
+          loader.classList.add('fade-out');
+          setTimeout(() => loader.style.display = 'none', 400);
+        }
       }
     } catch (e) {
       console.warn('[KG] Gagal fetch dari Google Sheets:', e.message);
+      if (loader) {
+        document.getElementById('loader-text').textContent = 'Koneksi Lambat/Gagal';
+        document.getElementById('loader-subtext').textContent = 'Gagal memuat data. Koneksi lebih dari 10 detik atau terputus.';
+        document.getElementById('loader-retry-btn').style.display = 'inline-block';
+        const spinner = document.querySelector('.spinner');
+        if (spinner) spinner.style.display = 'none';
+      }
+      return; // Berhenti agar user bisa klik "Coba Lagi"
     }
 
     // Fallback: load dari localStorage cache, lalu INITIAL_DATA
