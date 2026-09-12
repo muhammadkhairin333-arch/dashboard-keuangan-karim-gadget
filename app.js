@@ -21,13 +21,13 @@ const fmtShort = (n) => {
 };
 const fmtDate = (s) => {
   if (!s) return '–';
-  try { return new Date(s.replace(/-/g, '/') + (s.length === 10 ? ' 00:00:00' : '')).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  try { return new Date(s + (s.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }); }
   catch { return s; }
 };
 const fmtDateNum = (s) => {
   if (!s) return '–';
   try {
-    const d = new Date(s.replace(/-/g, '/') + (s.length === 10 ? ' 00:00:00' : ''));
+    const d = new Date(s + (s.length === 10 ? 'T00:00:00' : ''));
     if (isNaN(d)) return s;
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   } catch { return s; }
@@ -37,107 +37,13 @@ const setText = (id, v) => { const e = el(id); if (e) e.textContent = v; };
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbzY3DgRFtl6zA-8jHGXvuisb_iFibh8kit-XIriSiRoEYfZvFr4W4IPAsAV4o3_kx1V/exec';
 
-// ============ API FETCH WRAPPER ============
-const apiFetch = async (url, options = {}, timeout = 10000) => {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  
-  // Bust Cache
-  const bustUrl = new URL(url);
-  bustUrl.searchParams.append('_t', new Date().getTime());
-  
-  const finalOptions = {
-    ...options,
-    cache: 'no-store',
-    signal: controller.signal
-  };
-  
-  try {
-    const res = await fetch(bustUrl.toString(), finalOptions);
-    clearTimeout(id);
-    return res;
-  } catch (error) {
-    clearTimeout(id);
-    throw error;
-  }
-};
-
-// ============ AUTHENTICATION & RBAC ============
-const Auth = {
-  user: null,
-  init() {
-    const stored = localStorage.getItem('kg_auth_user');
-    if (stored) {
-      try { this.user = JSON.parse(stored); } catch(e) {}
-    }
-    
-    const loginForm = document.getElementById('login-form');
-    if (loginForm) {
-      loginForm.onsubmit = (e) => {
-        e.preventDefault();
-        this.login();
-      };
-    }
-  },
-
-  async login() {
-    const userEl = document.getElementById('login-username');
-    const passEl = document.getElementById('login-password');
-    const btn = document.getElementById('login-btn');
-    const alertEl = document.getElementById('login-alert');
-    
-    if (!userEl || !passEl) return;
-    
-    const u = userEl.value.trim().toLowerCase();
-    const p = passEl.value;
-    
-    btn.textContent = 'Memeriksa...';
-    btn.disabled = true;
-    alertEl.style.display = 'none';
-    
-    // Tidak ada artificial delay — langsung proses
-    let role = '';
-    if (u === 'admin' && p === 'admin123') role = 'ADMIN';
-    else if ((u === 'khairin' && p === 'khairin123') || (u === 'ridho' && p === 'ridho123')) role = 'OWNER';
-    else if (u === 'user' && p === 'user123') role = 'USER';
-    
-    if (role) {
-      this.user = { username: u, role: role };
-      localStorage.setItem('kg_auth_user', JSON.stringify(this.user));
-      // SPA transition: tidak reload halaman, langsung init dashboard
-      // Ini jauh lebih cepat karena tidak perlu fetch ulang dari nol
-      await App.init();
-    } else {
-      alertEl.textContent = 'Username atau password salah!';
-      alertEl.style.display = 'block';
-      btn.textContent = 'Sign In';
-      btn.disabled = false;
-    }
-  },
-  
-  logout() {
-    localStorage.removeItem('kg_auth_user');
-    this.user = null;
-    window.location.reload();
-  },
-
-  hasAccess(page) {
-    if (!this.user) return false;
-    const r = this.user.role;
-    if (r === 'ADMIN') return true;
-    if (r === 'USER') return page === 'input';
-    if (r === 'OWNER') return ['overview', 'transaksi', 'penjualan', 'laporan'].includes(page);
-    return false;
-  }
-};
-
 const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const BULAN_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 // Validate tanggal format YYYY-MM-DD
 const isValidDate = (s) => {
   if (!s || typeof s !== 'string') return false;
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s.replace(/-/g, '/') + ' 00:00:00').getTime());
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T00:00:00').getTime());
 };
 
 // Format YYYY-MM to "Agustus 2026"
@@ -154,7 +60,7 @@ function applyCalendarFilter(arr, field, filter) {
   return arr.filter(item => {
     const val = item[field];
     if (!val || !isValidDate(val)) return false;
-    const d = new Date(val.replace(/-/g, '/') + ' 00:00:00');
+    const d = new Date(val + 'T00:00:00');
     if (mode === 'hariini') {
       const today = new Date().toISOString().split('T')[0];
       return val === today;
@@ -173,7 +79,7 @@ function applyCalendarFilter(arr, field, filter) {
       const lastMonday = new Date(monday);
       lastMonday.setDate(monday.getDate() - 7);
 
-      const itemDate = new Date(val.replace(/-/g, '/') + ' 00:00:00');
+      const itemDate = new Date(val + 'T00:00:00');
       if (mode === 'mingguini') return itemDate >= monday && itemDate < nextMonday;
       if (mode === 'minggulalu') return itemDate >= lastMonday && itemDate < monday;
     }
@@ -193,15 +99,15 @@ function applyCalendarFilter(arr, field, filter) {
       monday.setHours(0, 0, 0, 0);
       const nextMonday = new Date(monday);
       nextMonday.setDate(monday.getDate() + 7);
-      const itemDate = new Date(val.replace(/-/g, '/') + ' 00:00:00');
+      const itemDate = new Date(val + 'T00:00:00');
       return itemDate >= monday && itemDate < nextMonday;
     }
     if (mode === 'bulan') return d.getFullYear() === parseInt(year) && d.getMonth() === parseInt(month) - 1;
     if (mode === 'tahun') return d.getFullYear() === parseInt(year);
     if (mode === 'custom') {
       if (!start && !end) return false;
-      const from = start ? new Date(start.replace(/-/g, '/') + ' 00:00:00') : new Date('2000/01/01');
-      const to = end ? new Date(end.replace(/-/g, '/') + ' 23:59:59') : new Date('2099/12/31');
+      const from = start ? new Date(start + 'T00:00:00') : new Date('2000-01-01');
+      const to = end ? new Date(end + 'T23:59:59') : new Date('2099-12-31');
       return d >= from && d <= to;
     }
     return true;
@@ -237,7 +143,7 @@ function filterLabel(filter) {
 function getPrevFilter(f) {
   if (f.mode === 'hari') {
     if (!f.date) return null;
-    const d = new Date(f.date.replace(/-/g, '/') + ' 00:00:00');
+    const d = new Date(f.date + 'T00:00:00');
     d.setDate(d.getDate() - 1);
     return { mode: 'hari', date: d.toISOString().split('T')[0] };
   }
@@ -261,8 +167,8 @@ function getPrevFilter(f) {
   }
   if (f.mode === 'custom') {
     if (!f.start || !f.end) return null;
-    const s = new Date(f.start.replace(/-/g, '/') + ' 00:00:00');
-    const e = new Date(f.end.replace(/-/g, '/') + ' 00:00:00');
+    const s = new Date(f.start + 'T00:00:00');
+    const e = new Date(f.end + 'T00:00:00');
     const diff = e - s;
     const prevE = new Date(s.getTime() - 86400000);
     const prevS = new Date(prevE.getTime() - diff);
@@ -285,29 +191,27 @@ function mapCategory(raw = '', desc = '') {
   const k = raw.trim();
   const d = (desc || '').toLowerCase();
   
-  if (k === 'Pendapatan Utama' || k === 'Penjualan Utama' || k === 'Pendapatan') {
-    if (/iphone|ipad|jual|pelunasan|dp|tablet|laptop|aksesoris|samsung|xiaomi|oppo|vivo|realme/.test(d) || k === 'Pendapatan Utama' || k === 'Penjualan Utama') return 'Pendapatan Utama';
-    return 'Penjualan lainnya';
+  if (k === 'Penjualan Utama' || k === 'Pendapatan Lainnya' || k === 'Pendapatan') {
+    if (/iphone|ipad|jual|pelunasan|dp|tablet|laptop|aksesoris|samsung|xiaomi|oppo|vivo|realme/.test(d) || k === 'Penjualan Utama') return 'Penjualan Utama';
+    return 'Pendapatan Lainnya';
   }
-  if (k === 'Penjualan lainnya' || k === 'Pendapatan Lainnya') return 'Penjualan lainnya';
-  if (k === 'Inventory' || k === 'HPP (Inventory)' || k === 'Invenroty') return 'Inventory';
-  if (k === 'Biaya Operasional' || k === 'Operasional' || k === 'Expenses') return 'Biaya Operasional';
-  if (k === 'Biaya Bank' || k === 'Biaya Bank & Admin' || k === 'Expensess' || k === 'Biaya Admin Bank') return 'Biaya Bank';
-  if (k === 'Ekuitas & aset' || k === 'Ekuitas & Aset' || k === 'Ekuitas' || k === 'Deviden' || k === 'Investasi' || k === 'Equity') return 'Ekuitas & aset';
+  if (k === 'HPP (Inventory)' || k === 'Inventory' || k === 'Invenroty') return 'Inventory';
+  if (k === 'Biaya Operasional' || k === 'Operasional' || k === 'Expenses') return 'Operasional';
+  if (k === 'Biaya Bank & Admin' || k === 'Expensess' || k === 'Biaya Bank') return 'Expensess';
+  if (k === 'Ekuitas & Aset' || k === 'Ekuitas' || k === 'Deviden' || k === 'Investasi' || k === 'Equity') return 'Ekuitas';
   return k || 'Lainnya';
 }
 
 const BADGE_CLASS = {
-  'Pendapatan Utama': 'badge badge-pendapatan-utama',
-  'Penjualan lainnya': 'badge badge-penjualan-lainnya',
-  'Inventory': 'badge badge-inventory',
-  'Biaya Operasional': 'badge badge-operasional',
-  'Biaya Bank': 'badge badge-bank',
-  'Ekuitas & aset': 'badge badge-ekuitas',
-  'Lainnya': 'badge badge-lainnya'
+  'Penjualan Utama': 'badge badge-penjualan',
+  'Pendapatan Lainnya': 'badge badge-lainnya',
+  'Inventory': 'badge badge-hpp',
+  'Operasional': 'badge badge-operasional',
+  'Expensess': 'badge badge-bank',
+  'Ekuitas': 'badge badge-ekuitas',
 };
 function catBadge(kat) {
-  const cls = BADGE_CLASS[kat] || 'badge badge-lainnya';
+  const cls = BADGE_CLASS[kat] || 'badge badge-bank';
   return `<span class="${cls}"><span class="dot"></span>${kat}</span>`;
 }
 
@@ -318,109 +222,12 @@ const Store = {
   _networth: [],
   _invalidDates: 0,
 
-  // ── Konstanta Cache TTL (5 menit) ──────────────────────────────────────────
-  // Jika cache sudah lebih dari TTL_MS, paksa refresh dari GSheets meski ada cache.
-  // Ini penting agar multi-user selalu mendapat data terbaru dalam jangka waktu wajar.
-  _CACHE_TTL_MS: 5 * 60 * 1000,
-
-  _isCacheStale() {
-    const ts = parseInt(localStorage.getItem('kg_cache_ts') || '0', 10);
-    return (Date.now() - ts) > this._CACHE_TTL_MS;
-  },
-
-  _stampCache() {
-    localStorage.setItem('kg_cache_ts', String(Date.now()));
-  },
-
   async init() {
-    const loader = document.getElementById('global-loader');
-
-    // ── LANGKAH 1: Tampilkan cache/INITIAL_DATA SEGERA ──────────────────────
-    // Ini memastikan di device baru pun data tidak terlihat kosong lama.
-    const hasCacheTx    = !!localStorage.getItem('kg_tx_cache');
-    const hasCacheSales = !!localStorage.getItem('kg_sales_cache');
-    const hasCacheNw    = !!localStorage.getItem('kg_nw_cache');
-
-    // Load dari cache lokal terlebih dahulu (tanpa tunggu network)
-    if (hasCacheTx) {
-      try { this._transactions = JSON.parse(localStorage.getItem('kg_tx_cache')); } catch { this._transactions = []; }
-    } else if (typeof INITIAL_DATA !== 'undefined') {
-      // Tidak ada cache → pakai INITIAL_DATA sebagai placeholder sementara
-      const rawInitTx = Array.isArray(INITIAL_DATA) ? INITIAL_DATA : (INITIAL_DATA.transactions || []);
-      let skipped = 0;
-      this._transactions = rawInitTx.map((t, i) => {
-        const tanggal = t.tanggal || '';
-        const validTanggal = isValidDate(tanggal) ? tanggal : null;
-        if (!validTanggal && (t.deskripsi || t.uangMasuk || t.uangKeluar)) skipped++;
-        return { ...t, sheetIndex: i, id: t.id || Math.random().toString(36).substr(2, 8), tanggal: validTanggal, kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''), kategoriRaw: t.kategori || '' };
-      }).filter(t => t.tanggal !== null);
-      this._invalidDates = skipped;
-    }
-
-    if (hasCacheSales) {
-      try { this._sales = JSON.parse(localStorage.getItem('kg_sales_cache')); } catch { this._sales = []; }
-    } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.sales) {
-      this._sales = INITIAL_DATA.sales.map(s => {
-        const validMasuk = isValidDate(s.tanggalMasuk) ? s.tanggalMasuk : null;
-        const validKeluar = isValidDate(s.tanggalKeluar) ? s.tanggalKeluar : null;
-        let turnoverDays = null;
-        if (validMasuk && validKeluar) {
-          const days = Math.round((new Date(validKeluar.replace(/-/g, '/') + ' 00:00:00') - new Date(validMasuk.replace(/-/g, '/') + ' 00:00:00')) / 86400000);
-          turnoverDays = days >= 0 ? days : null;
-        }
-        return { ...s, id: s.id || Math.random().toString(36).substr(2, 8), notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
-      });
-    }
-
-    if (hasCacheNw) {
-      try { this._networth = JSON.parse(localStorage.getItem('kg_nw_cache')); } catch { this._networth = []; }
-    } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.networth) {
-      this._networth = INITIAL_DATA.networth || [];
-    }
-
-    // Jika ada cache/data awal → sembunyikan loader segera & render dulu
-    // Kecuali jika cache sudah stale (> TTL), tetap tampilkan cache tapi tandai perlu refresh
-    const hasLocalData = this._transactions.length > 0 || this._sales.length > 0;
-    const cacheStale = this._isCacheStale();
-    if (hasLocalData) {
-      if (loader) {
-        loader.classList.add('fade-out');
-        setTimeout(() => loader.style.display = 'none', 300);
-      }
-      // Render langsung dengan data lokal
-      if (typeof App !== 'undefined' && App._rendered) {
-        App.render();
-      }
-    } else {
-      // Belum ada data apapun → tampilkan loader saja
-      if (loader) {
-        loader.style.display = 'flex';
-        loader.classList.remove('fade-out');
-        document.getElementById('loader-retry-btn').style.display = 'none';
-        const spinner = document.querySelector('.spinner');
-        if (spinner) spinner.style.display = 'block';
-        document.getElementById('loader-text').textContent = 'Memuat Data...';
-        document.getElementById('loader-subtext').textContent = 'Sinkronisasi pertama dari server...';
-      }
-    }
-
-    // ── LANGKAH 2: Fetch dari Google Sheets di background ───────────────────
-    // Selalu fetch jika: (a) tidak ada data lokal, atau (b) cache sudah stale
-    // Jika data lokal masih fresh (< TTL): skip fetch untuk hemat bandwidth
-    if (hasLocalData && !cacheStale) {
-      // Cache masih fresh → tidak perlu fetch, langsung selesai
-      toast('✅ Data sudah terkini (cache segar)', 'info');
-      return;
-    }
-
-    if (hasLocalData) {
-      toast('🔄 Memperbarui data dari server...', 'info');
-    } else {
-      toast('⏳ Menghubungkan ke Google Sheets...', 'info');
-    }
+    toast('⏳ Menghubungkan ke Google Sheets...', 'info');
+    let loaded = false;
 
     try {
-      const res = await apiFetch(API_URL, { redirect: 'follow' }, 15000);
+      const res = await fetch(API_URL, { redirect: 'follow' });
       if (!res.ok) throw new Error('HTTP error: ' + res.status);
       const data = await res.json();
 
@@ -435,7 +242,7 @@ const Store = {
           if (!validTanggal) skipped++;
           return {
             ...t,
-            sheetIndex: t.sheetIndex !== undefined ? t.sheetIndex : i,
+            sheetIndex: t.sheetIndex !== undefined ? t.sheetIndex : i, // Preserve original row index
             id: t.id || Math.random().toString(36).substr(2, 8),
             tanggal: validTanggal,
             kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''),
@@ -450,14 +257,17 @@ const Store = {
         pendingTx.forEach(p => {
           if (!this._transactions.find(t => t.id === p.id)) this._transactions.push(p);
         });
-
+        
+        // Sort by tanggal, then by sheetIndex so same-day transactions maintain original sheet order!
         this._transactions.sort((a, b) => {
           const c = (a.tanggal || '').localeCompare(b.tanggal || '');
           if (c !== 0) return c;
           return (a.sheetIndex || 0) - (b.sheetIndex || 0);
         });
 
+        // Hitung Saldo secara berurutan agar 100% sinkron dan akurat (mengatasi rumus Google Sheet yang mungkin kosong/error)
         this._recalcAllSaldo();
+
         this._saveTxLocal();
 
         // Proses data penjualan
@@ -466,7 +276,7 @@ const Store = {
           const validKeluar = isValidDate(s.tanggalKeluar) ? s.tanggalKeluar : null;
           let turnoverDays = null;
           if (validMasuk && validKeluar) {
-            const days = Math.round((new Date(validKeluar.replace(/-/g, '/') + ' 00:00:00') - new Date(validMasuk.replace(/-/g, '/') + ' 00:00:00')) / 86400000);
+            const days = Math.round((new Date(validKeluar + 'T00:00:00') - new Date(validMasuk + 'T00:00:00')) / 86400000);
             turnoverDays = days >= 0 ? days : null;
           }
           return {
@@ -481,6 +291,7 @@ const Store = {
           };
         });
 
+        // Merge pending sales yang belum dikonfirmasi
         const pendingSales = this._getPendingSales();
         this._sales = [...gsSales];
         pendingSales.forEach(p => {
@@ -488,39 +299,59 @@ const Store = {
         });
         this._saveSalesLocal();
 
+        // Load Net Worth data
         this._networth = data.networth || [];
         this._saveNetworthLocal();
 
-        this._stampCache(); // Update timestamp cache setelah berhasil fetch
+        loaded = true;
         toast('✅ Tersinkronisasi dengan Google Sheets!', 'success');
-
-        // Re-render halaman aktif dengan data terbaru
-        if (typeof App !== 'undefined' && App._rendered) {
-          App.render();
-        }
-
-        // Sembunyikan loader (jika masih tampil karena device baru)
-        if (loader && loader.style.display !== 'none') {
-          loader.classList.add('fade-out');
-          setTimeout(() => loader.style.display = 'none', 400);
-        }
       }
     } catch (e) {
       console.warn('[KG] Gagal fetch dari Google Sheets:', e.message);
+    }
 
-      if (!hasLocalData) {
-        // Tidak ada data sama sekali → tampilkan error di loader
-        if (loader) {
-          document.getElementById('loader-text').textContent = 'Koneksi Lambat/Gagal';
-          document.getElementById('loader-subtext').textContent = 'Gagal memuat data. Koneksi lebih dari 15 detik atau terputus.';
-          document.getElementById('loader-retry-btn').style.display = 'inline-block';
-          const spinner = document.querySelector('.spinner');
-          if (spinner) spinner.style.display = 'none';
-        }
-        return; // Berhenti agar user bisa klik "Coba Lagi"
+    // Fallback: load dari localStorage cache, lalu INITIAL_DATA
+    if (!loaded) {
+      toast('📴 Offline — memuat data tersimpan...', 'error');
+      const cachedTx = localStorage.getItem('kg_tx_cache');
+      const cachedSales = localStorage.getItem('kg_sales_cache');
+
+      if (cachedTx) {
+        try { this._transactions = JSON.parse(cachedTx); } catch { this._transactions = []; }
+        this._invalidDates = 0;
       } else {
-        // Ada data lokal → tampilkan warning toast saja, data tetap bisa dibaca
-        toast('⚠️ Gagal sinkronisasi — menampilkan data tersimpan', 'error');
+        const rawInitTx = typeof INITIAL_DATA !== 'undefined' ? (Array.isArray(INITIAL_DATA) ? INITIAL_DATA : (INITIAL_DATA.transactions || [])) : [];
+        this._transactions = rawInitTx.map((t, i) => {
+          const tanggal = t.tanggal || '';
+          const validTanggal = isValidDate(tanggal) ? tanggal : null;
+          if (!validTanggal && (t.deskripsi || t.uangMasuk || t.uangKeluar)) skipped++;
+          return { ...t, sheetIndex: i, id: t.id || Math.random().toString(36).substr(2, 8), tanggal: validTanggal, kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''), kategoriRaw: t.kategori || '' };
+        }).filter(t => t.tanggal !== null);
+        this._invalidDates = skipped;
+      }
+
+      if (cachedSales) {
+        try { this._sales = JSON.parse(cachedSales); } catch { this._sales = []; }
+      } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.sales) {
+        this._sales = INITIAL_DATA.sales.map(s => {
+          const validMasuk = isValidDate(s.tanggalMasuk) ? s.tanggalMasuk : null;
+          const validKeluar = isValidDate(s.tanggalKeluar) ? s.tanggalKeluar : null;
+          let turnoverDays = null;
+          if (validMasuk && validKeluar) {
+            const days = Math.round((new Date(validKeluar + 'T00:00:00') - new Date(validMasuk + 'T00:00:00')) / 86400000);
+            turnoverDays = days >= 0 ? days : null;
+          }
+          return { ...s, id: s.id || Math.random().toString(36).substr(2, 8), notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
+        });
+      }
+
+      const cachedNw = localStorage.getItem('kg_nw_cache');
+      if (cachedNw) {
+        try { this._networth = JSON.parse(cachedNw); } catch { this._networth = []; }
+      } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.networth) {
+        this._networth = INITIAL_DATA.networth || [];
+      } else {
+        this._networth = [];
       }
     }
   },
@@ -670,7 +501,7 @@ const Store = {
     filtered.forEach(t => {
       if (!t.tanggal || !isValidDate(t.tanggal)) return;
       let key = '', label = '';
-      const d = new Date(t.tanggal.replace(/-/g, '/') + ' 00:00:00');
+      const d = new Date(t.tanggal + 'T00:00:00');
       
       if (groupMode === 'hari') {
         key = t.tanggal;
@@ -768,9 +599,10 @@ const Store = {
   getCategorySpend(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     const cats = {};
+    const validExpense = ['Inventory', 'Operasional', 'Expensess', 'Ekuitas'];
     filtered.forEach(t => {
       if ((t.uangKeluar || 0) > 0) {
-        const k = t.kategori || 'Lainnya';
+        const k = validExpense.includes(t.kategori) ? t.kategori : 'Lainnya';
         cats[k] = (cats[k] || 0) + t.uangKeluar;
       }
     });
@@ -781,9 +613,10 @@ const Store = {
   getIncomeSpend(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     const cats = {};
+    const validIncome = ['Penjualan Utama', 'Pendapatan Lainnya', 'Ekuitas'];
     filtered.forEach(t => {
       if ((t.uangMasuk || 0) > 0) {
-        const k = t.kategori || 'Lainnya';
+        const k = validIncome.includes(t.kategori) ? t.kategori : 'Lainnya';
         cats[k] = (cats[k] || 0) + t.uangMasuk;
       }
     });
@@ -918,7 +751,7 @@ const Store = {
     if (idx === -1) return false;
     const merged = { ...this._sales[idx], ...updates };
     if (merged.tanggalMasuk && merged.tanggalKeluar && isValidDate(merged.tanggalMasuk) && isValidDate(merged.tanggalKeluar)) {
-      const days = Math.round((new Date(merged.tanggalKeluar.replace(/-/g, '/') + ' 00:00:00') - new Date(merged.tanggalMasuk.replace(/-/g, '/') + ' 00:00:00')) / 86400000);
+      const days = Math.round((new Date(merged.tanggalKeluar + 'T00:00:00') - new Date(merged.tanggalMasuk + 'T00:00:00')) / 86400000);
       merged.turnoverDays = days >= 0 ? days : null;
     }
     if (merged.hargaBeli != null && merged.hargaJual != null) {
@@ -1159,7 +992,7 @@ const Charts = {
     } else if (granularity === 'mingguan' || granularity === 'minggu') {
       const map = {};
       safeData.forEach(d => {
-        const date = new Date(d.tanggal.replace(/-/g, '/') + ' 00:00:00');
+        const date = new Date(d.tanggal + 'T00:00:00');
         const dayOfWeek = date.getDay() || 7;
         const monday = new Date(date);
         monday.setDate(date.getDate() - dayOfWeek + 1);
@@ -1268,15 +1101,7 @@ const Charts = {
   renderDonut(cats) {
     this.destroy('donut');
     const ctx = el('chart-donut'); if (!ctx) return;
-    const colors = { 
-      'Pendapatan Utama': '#10B981', 
-      'Penjualan lainnya': '#3B82F6', 
-      'Inventory': '#EF4444', 
-      'Biaya Operasional': '#F97316', 
-      'Biaya Bank': '#EAB308', 
-      'Ekuitas & aset': '#EC4899', 
-      'Lainnya': '#64748B' 
-    };
+    const colors = { 'Inventory': '#ef4444', 'Operasional': '#f59e0b', 'Expensess': '#8b5cf6', 'Ekuitas': '#ec4899', 'Pendapatan': '#10b981', 'Lainnya': '#94a3b8' };
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
     let msgEl = document.getElementById('donut-empty-msg');
@@ -1352,15 +1177,7 @@ const Charts = {
   renderIncomeDonut(cats) {
     this.destroy('donutIncome');
     const ctx = el('chart-donut-income'); if (!ctx) return;
-    const colors = { 
-      'Pendapatan Utama': '#10B981', 
-      'Penjualan lainnya': '#3B82F6', 
-      'Inventory': '#EF4444', 
-      'Biaya Operasional': '#F97316', 
-      'Biaya Bank': '#EAB308', 
-      'Ekuitas & aset': '#EC4899', 
-      'Lainnya': '#64748B' 
-    };
+    const colors = { 'Penjualan Utama': '#10b981', 'Pendapatan Lainnya': '#0ea5e9', 'Pendapatan': '#10b981', 'Ekuitas': '#ec4899' };
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
     let msgEl = document.getElementById('donut-income-empty-msg');
@@ -1569,121 +1386,30 @@ const App = {
   overview: { filter: { mode: 'bulan', year: String(new Date().getFullYear()), month: new Date().getMonth() + 1 } },
   laporan: { filter: { mode: 'semua' } },
   inputTab: 'kas',
-  _rendered: false,       // true setelah App selesai render pertama kali
-  _activePage: 'overview', // halaman aktif saat ini
-
-  // Re-render halaman yang sedang aktif (dipanggil setelah data background selesai)
-  render() {
-    if (!this._rendered) return;
-    const renderers = {
-      overview: () => this._renderOverview(),
-      transaksi: () => this._renderTx(),
-      penjualan: () => this._renderSales(),
-      input: () => this._renderInput(),
-      laporan: () => this._renderLaporan()
-    };
-    (renderers[this._activePage] || (() => {}))();
-    setText('badge-tx', Store._transactions.length);
-  },
 
   async init() {
-    Auth.init();
-    
-    if (!Auth.user) {
-      const loginContainer = document.getElementById('login-container');
-      const dashContainer = document.getElementById('dashboard-container');
-      if (loginContainer) loginContainer.style.display = 'flex';
-      if (dashContainer) dashContainer.style.display = 'none';
-      return; 
-    }
-    
-    const loginContainer = document.getElementById('login-container');
-    const dashContainer = document.getElementById('dashboard-container');
-    if (loginContainer) loginContainer.style.display = 'none';
-    if (dashContainer) dashContainer.style.display = 'block';
-    
-    // ── Inject user info ke navbar ──────────────────────────────────────────
-    const u = Auth.user;
-    const navAvatar = document.getElementById('nav-avatar');
-    const navUsername = document.getElementById('nav-username');
-    const navRoleBadge = document.getElementById('nav-role-badge');
-    if (navAvatar)    navAvatar.textContent    = u.username.charAt(0).toUpperCase();
-    if (navUsername)  navUsername.textContent  = u.username.charAt(0).toUpperCase() + u.username.slice(1);
-    if (navRoleBadge) {
-      navRoleBadge.textContent = u.role;
-      navRoleBadge.className   = 'nav-role-badge ' + u.role.toLowerCase();
-    }
-    
-    // ── Role-based nav: HAPUS elemen dari DOM (bukan hanya hide) ───────────
-    document.querySelectorAll('.nav-link[data-page]').forEach(btn => {
-      if (!Auth.hasAccess(btn.dataset.page)) {
-        btn.remove(); // Hapus total dari DOM, bukan style.display = none
-      }
-    });
-
-    // ── USER mode: sembunyikan seluruh nav-menu & chip ──────────────────────
-    if (u.role === 'USER') {
-      document.body.classList.add('user-mode');
-      const chip = document.getElementById('nav-user-chip');
-      if (chip) chip.style.display = 'none';
-    }
-
     await Store.init();
     this._setupNav();
     this._setupCalendarFilters();
     this._setupTxFilters();
     this._setupForm();
     this._setupModals();
-    
-    this._rendered = true; // Tandai sudah render SEBELUM go() agar background fetch bisa trigger render
-
-    if (u.role === 'USER') {
-      this.go('input');
-    } else {
-      this.go('overview');
-    }
-    
+    this.go('overview');
     setText('badge-tx', Store._transactions.length);
     if (Store._invalidDates > 0) {
       setTimeout(() => toast(`⚠️ ${Store._invalidDates} baris dengan tanggal tidak valid dilewati.`, 'error'), 500);
     }
-
-    // ── Auto-refresh setiap 5 menit untuk sinkronisasi multi-user ──────────
-    if (this._autoRefreshTimer) clearInterval(this._autoRefreshTimer);
-    this._autoRefreshTimer = setInterval(async () => {
-      if (document.hidden) return;
-      await Store.init();
-    }, 5 * 60 * 1000);
   },
 
   _setupNav() {
     document.querySelectorAll('.nav-link[data-page]').forEach(btn => {
-      btn.onclick = (e) => {
-        e.preventDefault();
-        this.go(btn.dataset.page);
-        // Tutup mobile menu setelah klik
-        const menu = el('navMenu');
-        if (menu) menu.classList.remove('show');
-      };
+      btn.onclick = (e) => { e.preventDefault(); this.go(btn.dataset.page); };
     });
     const navToggle = el('navToggle');
     if (navToggle) navToggle.onclick = () => el('navMenu').classList.toggle('show');
-    // Tutup menu jika klik di luar
-    document.addEventListener('click', (e) => {
-      const menu = el('navMenu');
-      const toggle = el('navToggle');
-      if (menu && toggle && !menu.contains(e.target) && !toggle.contains(e.target)) {
-        menu.classList.remove('show');
-      }
-    }, true);
   },
 
   go(page) {
-    if (!Auth.hasAccess(page)) {
-      toast('Akses Ditolak: Anda tidak memiliki izin untuk halaman ini.', 'error');
-      return;
-    }
-    this._activePage = page; // Track halaman aktif untuk background refresh
     document.querySelectorAll('.nav-link[data-page]').forEach(b => b.classList.toggle('active', b.dataset.page === page));
     document.querySelectorAll('.page-section').forEach(s => s.classList.toggle('active', s.id === `page-${page}`));
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2119,8 +1845,8 @@ const App = {
 
   _updateMoneyFields() {
     const kat = el('f-kategori') ? el('f-kategori').value : '';
-    const income = ['Pendapatan Utama', 'Penjualan lainnya'];
-    const expense = ['Inventory', 'Biaya Operasional', 'Biaya Bank'];
+    const income = ['Penjualan Utama', 'Pendapatan Lainnya'];
+    const expense = ['Inventory', 'Operasional', 'Expensess'];
     if (el('fg-masuk')) el('fg-masuk').style.display = expense.includes(kat) ? 'none' : 'flex';
     if (el('fg-keluar')) el('fg-keluar').style.display = income.includes(kat) ? 'none' : 'flex';
     if (income.includes(kat) && el('f-keluar')) el('f-keluar').value = '';
