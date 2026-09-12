@@ -2327,3 +2327,124 @@ body::before {
   .nav-link span:not(.nav-badge) { font-size: 9px; }
   .main-content { padding-left: 8px !important; padding-right: 8px !important; }
 }
+
+/* ===================== LOGIN FORM ===================== */
+.login-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f5f7 0%, #e8e8ed 100%);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  width: 100%;
+}
+
+.login-card {
+  background: #ffffff;
+  padding: 3rem 2.5rem;
+  border-radius: 20px;
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.12);
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.login-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1d1d1f;
+  letter-spacing: -0.01em;
+}
+
+.login-subtitle {
+  margin: 0.25rem 0 0;
+  color: #86868b;
+  font-size: 0.95rem;
+}
+
+.login-alert {
+  background-color: #fff2f2;
+  color: #d93025;
+  padding: 0.875rem 1rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+.login-form .form-group {
+  margin-bottom: 1.5rem;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #1d1d1f;
+  font-size: 0.85rem;
+}
+
+.login-form input {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 1px solid #d2d2d7;
+  border-radius: 12px;
+  font-size: 1rem;
+  color: #1d1d1f;
+  background-color: #fbfbfd;
+  transition: all 0.25s ease;
+  box-sizing: border-box;
+}
+
+.login-form input::placeholder {
+  color: #86868b;
+}
+
+.login-form input:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.05);
+  background-color: #ffffff;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 0.875rem;
+  background-color: #000000;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 0.5rem;
+}
+
+.login-btn:hover {
+  background-color: #333333;
+  transform: scale(0.98);
+}
+
+.login-footer {
+  margin-top: 2rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #86868b;
+}
+
+.login-footer a {
+  color: #0066cc;
+  text-decoration: none;
+  font-weight: 400;
+}
+
+.login-footer a:hover {
+  text-decoration: underline;
+}
