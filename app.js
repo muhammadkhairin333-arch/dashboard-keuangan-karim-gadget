@@ -74,7 +74,7 @@ const Auth = {
     
     let role = '';
     if (u === 'admin' && p === 'admin123') role = 'ADMIN';
-    else if (u === 'owner' && p === 'owner123') role = 'OWNER';
+    else if ((u === 'khairin' && p === 'khairin123') || (u === 'ridho' && p === 'ridho123')) role = 'OWNER';
     else if (u === 'user' && p === 'user123') role = 'USER';
     
     if (role) {
