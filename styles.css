@@ -2416,7 +2416,7 @@ body::before {
 .login-btn {
   width: 100%;
   padding: 1rem;
-  background-color: #111827;
+  background-color: var(--accent-blue);
   color: #FFFFFF;
   border: none;
   border-radius: 12px;
@@ -2428,6 +2428,6 @@ body::before {
 }
 
 .login-btn:hover, .login-btn:active {
-  background-color: #374151;
+  background-color: var(--accent-indigo);
   transform: scale(0.98);
 }
