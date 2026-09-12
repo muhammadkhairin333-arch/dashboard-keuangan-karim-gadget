@@ -319,21 +319,86 @@ const Store = {
 
   async init() {
     const loader = document.getElementById('global-loader');
-    if (loader) {
-      loader.style.display = 'flex';
-      loader.classList.remove('fade-out');
-      document.getElementById('loader-retry-btn').style.display = 'none';
-      const spinner = document.querySelector('.spinner');
-      if (spinner) spinner.style.display = 'block';
-      document.getElementById('loader-text').textContent = 'Memuat Data...';
-      document.getElementById('loader-subtext').textContent = 'Sinkronisasi terbaru dari server';
+
+    // ── LANGKAH 1: Tampilkan cache/INITIAL_DATA SEGERA ──────────────────────
+    // Ini memastikan di device baru pun data tidak terlihat kosong lama.
+    const hasCacheTx    = !!localStorage.getItem('kg_tx_cache');
+    const hasCacheSales = !!localStorage.getItem('kg_sales_cache');
+    const hasCacheNw    = !!localStorage.getItem('kg_nw_cache');
+
+    // Load dari cache lokal terlebih dahulu (tanpa tunggu network)
+    if (hasCacheTx) {
+      try { this._transactions = JSON.parse(localStorage.getItem('kg_tx_cache')); } catch { this._transactions = []; }
+    } else if (typeof INITIAL_DATA !== 'undefined') {
+      // Tidak ada cache → pakai INITIAL_DATA sebagai placeholder sementara
+      const rawInitTx = Array.isArray(INITIAL_DATA) ? INITIAL_DATA : (INITIAL_DATA.transactions || []);
+      let skipped = 0;
+      this._transactions = rawInitTx.map((t, i) => {
+        const tanggal = t.tanggal || '';
+        const validTanggal = isValidDate(tanggal) ? tanggal : null;
+        if (!validTanggal && (t.deskripsi || t.uangMasuk || t.uangKeluar)) skipped++;
+        return { ...t, sheetIndex: i, id: t.id || Math.random().toString(36).substr(2, 8), tanggal: validTanggal, kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''), kategoriRaw: t.kategori || '' };
+      }).filter(t => t.tanggal !== null);
+      this._invalidDates = skipped;
     }
 
-    toast('⏳ Menghubungkan ke Google Sheets...', 'info');
-    let loaded = false;
+    if (hasCacheSales) {
+      try { this._sales = JSON.parse(localStorage.getItem('kg_sales_cache')); } catch { this._sales = []; }
+    } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.sales) {
+      this._sales = INITIAL_DATA.sales.map(s => {
+        const validMasuk = isValidDate(s.tanggalMasuk) ? s.tanggalMasuk : null;
+        const validKeluar = isValidDate(s.tanggalKeluar) ? s.tanggalKeluar : null;
+        let turnoverDays = null;
+        if (validMasuk && validKeluar) {
+          const days = Math.round((new Date(validKeluar.replace(/-/g, '/') + ' 00:00:00') - new Date(validMasuk.replace(/-/g, '/') + ' 00:00:00')) / 86400000);
+          turnoverDays = days >= 0 ? days : null;
+        }
+        return { ...s, id: s.id || Math.random().toString(36).substr(2, 8), notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
+      });
+    }
+
+    if (hasCacheNw) {
+      try { this._networth = JSON.parse(localStorage.getItem('kg_nw_cache')); } catch { this._networth = []; }
+    } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.networth) {
+      this._networth = INITIAL_DATA.networth || [];
+    }
+
+    // Jika ada cache/data awal → sembunyikan loader segera & render dulu
+    const hasLocalData = this._transactions.length > 0 || this._sales.length > 0;
+    if (hasLocalData) {
+      if (loader) {
+        loader.classList.add('fade-out');
+        setTimeout(() => loader.style.display = 'none', 300);
+      }
+      // Render langsung dengan data lokal (App akan dipanggil setelah init() selesai,
+      // tapi kita trigger render awal di sini juga agar terasa instan)
+      if (typeof App !== 'undefined' && App._rendered) {
+        App.render();
+      }
+    } else {
+      // Belum ada data apapun → tampilkan loader saja
+      if (loader) {
+        loader.style.display = 'flex';
+        loader.classList.remove('fade-out');
+        document.getElementById('loader-retry-btn').style.display = 'none';
+        const spinner = document.querySelector('.spinner');
+        if (spinner) spinner.style.display = 'block';
+        document.getElementById('loader-text').textContent = 'Memuat Data...';
+        document.getElementById('loader-subtext').textContent = 'Sinkronisasi pertama dari server...';
+      }
+    }
+
+    // ── LANGKAH 2: Fetch dari Google Sheets di background ───────────────────
+    // Jika ada data lokal: fetch secara silent (tanpa blok loader).
+    // Jika belum ada data: fetch dengan loader penuh.
+    if (hasLocalData) {
+      toast('🔄 Memperbarui data dari server...', 'info');
+    } else {
+      toast('⏳ Menghubungkan ke Google Sheets...', 'info');
+    }
 
     try {
-      const res = await apiFetch(API_URL, { redirect: 'follow' }, 10000);
+      const res = await apiFetch(API_URL, { redirect: 'follow' }, 15000);
       if (!res.ok) throw new Error('HTTP error: ' + res.status);
       const data = await res.json();
 
@@ -348,7 +413,7 @@ const Store = {
           if (!validTanggal) skipped++;
           return {
             ...t,
-            sheetIndex: t.sheetIndex !== undefined ? t.sheetIndex : i, // Preserve original row index
+            sheetIndex: t.sheetIndex !== undefined ? t.sheetIndex : i,
             id: t.id || Math.random().toString(36).substr(2, 8),
             tanggal: validTanggal,
             kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''),
@@ -363,17 +428,14 @@ const Store = {
         pendingTx.forEach(p => {
           if (!this._transactions.find(t => t.id === p.id)) this._transactions.push(p);
         });
-        
-        // Sort by tanggal, then by sheetIndex so same-day transactions maintain original sheet order!
+
         this._transactions.sort((a, b) => {
           const c = (a.tanggal || '').localeCompare(b.tanggal || '');
           if (c !== 0) return c;
           return (a.sheetIndex || 0) - (b.sheetIndex || 0);
         });
 
-        // Hitung Saldo secara berurutan agar 100% sinkron dan akurat (mengatasi rumus Google Sheet yang mungkin kosong/error)
         this._recalcAllSaldo();
-
         this._saveTxLocal();
 
         // Proses data penjualan
@@ -397,7 +459,6 @@ const Store = {
           };
         });
 
-        // Merge pending sales yang belum dikonfirmasi
         const pendingSales = this._getPendingSales();
         this._sales = [...gsSales];
         pendingSales.forEach(p => {
@@ -405,72 +466,38 @@ const Store = {
         });
         this._saveSalesLocal();
 
-        // Load Net Worth data
         this._networth = data.networth || [];
         this._saveNetworthLocal();
 
-        loaded = true;
         toast('✅ Tersinkronisasi dengan Google Sheets!', 'success');
-        
-        if (loader) {
+
+        // Jika sebelumnya sudah ada data lokal → re-render secara silent
+        if (hasLocalData && typeof App !== 'undefined' && App._rendered) {
+          App.render();
+        }
+
+        // Sembunyikan loader (jika masih tampil karena device baru)
+        if (loader && loader.style.display !== 'none') {
           loader.classList.add('fade-out');
           setTimeout(() => loader.style.display = 'none', 400);
         }
       }
     } catch (e) {
       console.warn('[KG] Gagal fetch dari Google Sheets:', e.message);
-      if (loader) {
-        document.getElementById('loader-text').textContent = 'Koneksi Lambat/Gagal';
-        document.getElementById('loader-subtext').textContent = 'Gagal memuat data. Koneksi lebih dari 10 detik atau terputus.';
-        document.getElementById('loader-retry-btn').style.display = 'inline-block';
-        const spinner = document.querySelector('.spinner');
-        if (spinner) spinner.style.display = 'none';
-      }
-      return; // Berhenti agar user bisa klik "Coba Lagi"
-    }
 
-    // Fallback: load dari localStorage cache, lalu INITIAL_DATA
-    if (!loaded) {
-      toast('📴 Offline — memuat data tersimpan...', 'error');
-      const cachedTx = localStorage.getItem('kg_tx_cache');
-      const cachedSales = localStorage.getItem('kg_sales_cache');
-
-      if (cachedTx) {
-        try { this._transactions = JSON.parse(cachedTx); } catch { this._transactions = []; }
-        this._invalidDates = 0;
+      if (!hasLocalData) {
+        // Tidak ada data sama sekali → tampilkan error di loader
+        if (loader) {
+          document.getElementById('loader-text').textContent = 'Koneksi Lambat/Gagal';
+          document.getElementById('loader-subtext').textContent = 'Gagal memuat data. Koneksi lebih dari 15 detik atau terputus.';
+          document.getElementById('loader-retry-btn').style.display = 'inline-block';
+          const spinner = document.querySelector('.spinner');
+          if (spinner) spinner.style.display = 'none';
+        }
+        return; // Berhenti agar user bisa klik "Coba Lagi"
       } else {
-        const rawInitTx = typeof INITIAL_DATA !== 'undefined' ? (Array.isArray(INITIAL_DATA) ? INITIAL_DATA : (INITIAL_DATA.transactions || [])) : [];
-        this._transactions = rawInitTx.map((t, i) => {
-          const tanggal = t.tanggal || '';
-          const validTanggal = isValidDate(tanggal) ? tanggal : null;
-          if (!validTanggal && (t.deskripsi || t.uangMasuk || t.uangKeluar)) skipped++;
-          return { ...t, sheetIndex: i, id: t.id || Math.random().toString(36).substr(2, 8), tanggal: validTanggal, kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''), kategoriRaw: t.kategori || '' };
-        }).filter(t => t.tanggal !== null);
-        this._invalidDates = skipped;
-      }
-
-      if (cachedSales) {
-        try { this._sales = JSON.parse(cachedSales); } catch { this._sales = []; }
-      } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.sales) {
-        this._sales = INITIAL_DATA.sales.map(s => {
-          const validMasuk = isValidDate(s.tanggalMasuk) ? s.tanggalMasuk : null;
-          const validKeluar = isValidDate(s.tanggalKeluar) ? s.tanggalKeluar : null;
-          let turnoverDays = null;
-          if (validMasuk && validKeluar) {
-            const days = Math.round((new Date(validKeluar.replace(/-/g, '/') + ' 00:00:00') - new Date(validMasuk.replace(/-/g, '/') + ' 00:00:00')) / 86400000);
-            turnoverDays = days >= 0 ? days : null;
-          }
-          return { ...s, id: s.id || Math.random().toString(36).substr(2, 8), notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
-        });
-      }
-
-      const cachedNw = localStorage.getItem('kg_nw_cache');
-      if (cachedNw) {
-        try { this._networth = JSON.parse(cachedNw); } catch { this._networth = []; }
-      } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.networth) {
-        this._networth = INITIAL_DATA.networth || [];
-      } else {
-        this._networth = [];
+        // Ada data lokal → tampilkan warning toast saja, data tetap bisa dibaca
+        toast('⚠️ Gagal sinkronisasi — menampilkan data tersimpan', 'error');
       }
     }
   },
@@ -1519,6 +1546,22 @@ const App = {
   overview: { filter: { mode: 'bulan', year: String(new Date().getFullYear()), month: new Date().getMonth() + 1 } },
   laporan: { filter: { mode: 'semua' } },
   inputTab: 'kas',
+  _rendered: false,       // true setelah App selesai render pertama kali
+  _activePage: 'overview', // halaman aktif saat ini
+
+  // Re-render halaman yang sedang aktif (dipanggil setelah data background selesai)
+  render() {
+    if (!this._rendered) return;
+    const renderers = {
+      overview: () => this._renderOverview(),
+      transaksi: () => this._renderTx(),
+      penjualan: () => this._renderSales(),
+      input: () => this._renderInput(),
+      laporan: () => this._renderLaporan()
+    };
+    (renderers[this._activePage] || (() => {}))();
+    setText('badge-tx', Store._transactions.length);
+  },
 
   async init() {
     Auth.init();
@@ -1555,6 +1598,7 @@ const App = {
       this.go('overview');
     }
     
+    this._rendered = true; // Tandai sudah render agar background refresh bisa berjalan
     setText('badge-tx', Store._transactions.length);
     if (Store._invalidDates > 0) {
       setTimeout(() => toast(`⚠️ ${Store._invalidDates} baris dengan tanggal tidak valid dilewati.`, 'error'), 500);
@@ -1574,6 +1618,7 @@ const App = {
       toast('Akses Ditolak: Anda tidak memiliki izin untuk halaman ini.', 'error');
       return;
     }
+    this._activePage = page; // Track halaman aktif untuk background refresh
     document.querySelectorAll('.nav-link[data-page]').forEach(b => b.classList.toggle('active', b.dataset.page === page));
     document.querySelectorAll('.page-section').forEach(s => s.classList.toggle('active', s.id === `page-${page}`));
     window.scrollTo({ top: 0, behavior: 'smooth' });
