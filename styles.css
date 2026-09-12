@@ -2158,17 +2158,32 @@ body::before {
 .nav-logout svg { width: 14px; height: 14px; }
 .nav-logout:hover { background: rgba(244,63,94,0.1); border-color: rgba(244,63,94,0.4); }
 
-/* User Mode */
-body.user-mode .navbar-menu { display: none !important; }
+/* User Mode — hanya tampilkan halaman input, sembunyi nav lain */
 body.user-mode .nav-user-chip { display: none !important; }
+/* Di desktop, sembunyikan menu nav karena sudah ada nav-right logout */
+body.user-mode .navbar-menu { display: none !important; }
+
+/* Tombol logout mobile-only: SELALU tersembunyi di desktop */
+.nav-mobile-logout-header {
+  display: none !important;
+}
+
+/* Di mobile, tampilkan tombol logout header & bottom nav */
+/* (Override oleh @media di bawah) */
 
 /* ---- Mobile Critical Bug Fixes & Bottom Nav ---- */
 @media (max-width: 768px) {
-  .login-card, #dashboard-container {
+  /* Fix: dashboard jangan dibatasi 90% — hanya login card */
+  .login-card {
     width: 90%;
     max-width: 400px;
     overflow-x: hidden;
     margin: 0 auto;
+  }
+  
+  #dashboard-container {
+    width: 100%;
+    overflow-x: hidden;
   }
   
   .table-wrap {
@@ -2200,10 +2215,46 @@ body.user-mode .nav-user-chip { display: none !important; }
     gap: 4px;
   }
   
+  /* Mobile: tampilkan tombol logout di header pojok kanan */
   .nav-mobile-logout-header {
     display: flex !important;
     align-items: center;
     justify-content: center;
+    background: none;
+    border: none;
+    color: #ef4444;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    margin-right: 4px;
+  }
+  
+  /* Mobile: sembunyikan nav-right (desktop logout) */
+  .nav-right { display: none !important; }
+  
+  /* Mobile: bottom navigation bar */
+  .navbar-menu {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background: #ffffff;
+    display: flex !important;
+    flex-direction: row;
+    justify-content: space-evenly;
+    align-items: center;
+    border-top: 1px solid var(--border-subtle);
+    padding: 0 8px;
+    margin: 0;
+    z-index: 9999;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+    gap: 4px;
+  }
+  
+  /* User-mode mobile: tampilkan bottom nav agar input bisa diakses */
+  body.user-mode .navbar-menu {
+    display: flex !important;
   }
   
   .nav-link {
@@ -2216,11 +2267,9 @@ body.user-mode .nav-user-chip { display: none !important; }
     background: transparent;
     justify-content: center;
     flex: 1;
-    min-width: 60px;
+    min-width: 48px;
     color: var(--text-tertiary);
   }
-  
-  .report-kpi-grid { grid-template-columns: 1fr; }
   
   .nav-link svg {
     width: 20px;
@@ -2239,6 +2288,18 @@ body.user-mode .nav-user-chip { display: none !important; }
     border: none;
   }
   
+  /* Laporan KPI: 1 kolom di HP */
+  .report-kpi-grid { grid-template-columns: 1fr; }
+  
+  /* Form: 1 kolom di HP */
+  .form-grid { grid-template-columns: 1fr !important; }
+  
+  /* Charts: 1 kolom di HP */
+  .charts-equal, .charts-2col { grid-template-columns: 1fr !important; }
+  
+  /* Chart height mobile lebih compact */
+  .chart-h280 { height: 240px; }
+  
   /* Ensure badge aligns nicely in bottom nav */
   .nav-badge {
     position: absolute;
@@ -2246,4 +2307,12 @@ body.user-mode .nav-user-chip { display: none !important; }
     right: calc(50% - 20px);
     font-size: 9px;
   }
+  
+  /* Nav link relatif untuk badge positioning */
+  .navbar-menu .nav-link {
+    position: relative;
+  }
+
+  /* Nav toggle (hamburger) hidden di mobile */
+  .nav-toggle { display: none !important; }
 }
