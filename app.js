@@ -75,7 +75,7 @@ const Auth = {
     let role = '';
     if (u === 'admin' && p === 'admin123') role = 'ADMIN';
     else if (u === 'owner' && p === 'owner123') role = 'OWNER';
-    else if (u === 'karyawan' && p === 'karyawan123') role = 'KARYAWAN';
+    else if (u === 'user' && p === 'user123') role = 'USER';
     
     if (role) {
       this.user = { username: u, role: role };
@@ -99,7 +99,7 @@ const Auth = {
     if (!this.user) return false;
     const r = this.user.role;
     if (r === 'ADMIN') return true;
-    if (r === 'KARYAWAN') return page === 'input';
+    if (r === 'USER') return page === 'input';
     if (r === 'OWNER') return ['overview', 'transaksi', 'penjualan', 'laporan'].includes(page);
     return false;
   }
@@ -1500,7 +1500,7 @@ const App = {
     this._setupForm();
     this._setupModals();
     
-    if (Auth.user.role === 'KARYAWAN') {
+    if (Auth.user.role === 'USER') {
       this.go('input');
     } else {
       this.go('overview');
