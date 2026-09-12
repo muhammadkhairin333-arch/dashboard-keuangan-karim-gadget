@@ -1102,13 +1102,13 @@ const Charts = {
     this.destroy('donut');
     const ctx = el('chart-donut'); if (!ctx) return;
     const colors = { 
-      'Pendapatan Utama': '#16a34a', 
-      'Penjualan lainnya': '#4ade80', 
-      'Inventory': '#1d4ed8', 
-      'Biaya Operasional': '#06b6d4', 
-      'Biaya Bank': '#ef4444', 
-      'Ekuitas & aset': '#eab308', 
-      'Lainnya': '#94a3b8' 
+      'Pendapatan Utama': '#10B981', 
+      'Penjualan lainnya': '#3B82F6', 
+      'Inventory': '#EF4444', 
+      'Biaya Operasional': '#F97316', 
+      'Biaya Bank': '#EAB308', 
+      'Ekuitas & aset': '#EC4899', 
+      'Lainnya': '#64748B' 
     };
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
@@ -1185,7 +1185,15 @@ const Charts = {
   renderIncomeDonut(cats) {
     this.destroy('donutIncome');
     const ctx = el('chart-donut-income'); if (!ctx) return;
-    const colors = { 'Penjualan Utama': '#10b981', 'Pendapatan Lainnya': '#0ea5e9', 'Pendapatan': '#10b981', 'Ekuitas': '#ec4899' };
+    const colors = { 
+      'Pendapatan Utama': '#10B981', 
+      'Penjualan lainnya': '#3B82F6', 
+      'Inventory': '#EF4444', 
+      'Biaya Operasional': '#F97316', 
+      'Biaya Bank': '#EAB308', 
+      'Ekuitas & aset': '#EC4899', 
+      'Lainnya': '#64748B' 
+    };
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
     let msgEl = document.getElementById('donut-income-empty-msg');
