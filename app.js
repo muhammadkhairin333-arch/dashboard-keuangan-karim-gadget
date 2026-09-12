@@ -1602,11 +1602,31 @@ const App = {
     if (loginContainer) loginContainer.style.display = 'none';
     if (dashContainer) dashContainer.style.display = 'block';
     
+    // ── Inject user info ke navbar ──────────────────────────────────────────
+    const u = Auth.user;
+    const navAvatar = document.getElementById('nav-avatar');
+    const navUsername = document.getElementById('nav-username');
+    const navRoleBadge = document.getElementById('nav-role-badge');
+    if (navAvatar)    navAvatar.textContent    = u.username.charAt(0).toUpperCase();
+    if (navUsername)  navUsername.textContent  = u.username.charAt(0).toUpperCase() + u.username.slice(1);
+    if (navRoleBadge) {
+      navRoleBadge.textContent = u.role;
+      navRoleBadge.className   = 'nav-role-badge ' + u.role.toLowerCase();
+    }
+    
+    // ── Role-based nav: HAPUS elemen dari DOM (bukan hanya hide) ───────────
     document.querySelectorAll('.nav-link[data-page]').forEach(btn => {
       if (!Auth.hasAccess(btn.dataset.page)) {
-        btn.style.display = 'none';
+        btn.remove(); // Hapus total dari DOM, bukan style.display = none
       }
     });
+
+    // ── USER mode: sembunyikan seluruh nav-menu & chip ──────────────────────
+    if (u.role === 'USER') {
+      document.body.classList.add('user-mode');
+      const chip = document.getElementById('nav-user-chip');
+      if (chip) chip.style.display = 'none';
+    }
 
     await Store.init();
     this._setupNav();
@@ -1617,7 +1637,7 @@ const App = {
     
     this._rendered = true; // Tandai sudah render SEBELUM go() agar background fetch bisa trigger render
 
-    if (Auth.user.role === 'USER') {
+    if (u.role === 'USER') {
       this.go('input');
     } else {
       this.go('overview');
@@ -1629,21 +1649,33 @@ const App = {
     }
 
     // ── Auto-refresh setiap 5 menit untuk sinkronisasi multi-user ──────────
-    // Ini memastikan jika ada orang lain yang input data dari device lain,
-    // semua user yang sudah login akan mendapat update otomatis tanpa reload.
     if (this._autoRefreshTimer) clearInterval(this._autoRefreshTimer);
     this._autoRefreshTimer = setInterval(async () => {
-      if (document.hidden) return; // Jangan refresh jika tab/app sedang di background
+      if (document.hidden) return;
       await Store.init();
-    }, 5 * 60 * 1000); // 5 menit
+    }, 5 * 60 * 1000);
   },
 
   _setupNav() {
     document.querySelectorAll('.nav-link[data-page]').forEach(btn => {
-      btn.onclick = (e) => { e.preventDefault(); this.go(btn.dataset.page); };
+      btn.onclick = (e) => {
+        e.preventDefault();
+        this.go(btn.dataset.page);
+        // Tutup mobile menu setelah klik
+        const menu = el('navMenu');
+        if (menu) menu.classList.remove('show');
+      };
     });
     const navToggle = el('navToggle');
     if (navToggle) navToggle.onclick = () => el('navMenu').classList.toggle('show');
+    // Tutup menu jika klik di luar
+    document.addEventListener('click', (e) => {
+      const menu = el('navMenu');
+      const toggle = el('navToggle');
+      if (menu && toggle && !menu.contains(e.target) && !toggle.contains(e.target)) {
+        menu.classList.remove('show');
+      }
+    }, true);
   },
 
   go(page) {
