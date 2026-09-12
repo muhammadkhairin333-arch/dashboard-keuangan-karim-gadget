@@ -37,6 +37,74 @@ const setText = (id, v) => { const e = el(id); if (e) e.textContent = v; };
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbzY3DgRFtl6zA-8jHGXvuisb_iFibh8kit-XIriSiRoEYfZvFr4W4IPAsAV4o3_kx1V/exec';
 
+// ============ AUTHENTICATION & RBAC ============
+const Auth = {
+  user: null,
+  init() {
+    const stored = localStorage.getItem('kg_auth_user');
+    if (stored) {
+      try { this.user = JSON.parse(stored); } catch(e) {}
+    }
+    
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+      loginForm.onsubmit = (e) => {
+        e.preventDefault();
+        this.login();
+      };
+    }
+  },
+
+  async login() {
+    const userEl = document.getElementById('login-username');
+    const passEl = document.getElementById('login-password');
+    const btn = document.getElementById('login-btn');
+    const alert = document.getElementById('login-alert');
+    
+    if (!userEl || !passEl) return;
+    
+    const u = userEl.value.trim().toLowerCase();
+    const p = passEl.value;
+    
+    btn.textContent = 'Memeriksa...';
+    btn.disabled = true;
+    alert.style.display = 'none';
+    
+    await new Promise(r => setTimeout(r, 600));
+    
+    let role = '';
+    if (u === 'admin' && p === 'admin123') role = 'ADMIN';
+    else if (u === 'owner' && p === 'owner123') role = 'OWNER';
+    else if (u === 'karyawan' && p === 'karyawan123') role = 'KARYAWAN';
+    
+    if (role) {
+      this.user = { username: u, role: role };
+      localStorage.setItem('kg_auth_user', JSON.stringify(this.user));
+      window.location.reload();
+    } else {
+      alert.textContent = 'Username atau password salah!';
+      alert.style.display = 'block';
+      btn.textContent = 'Sign In';
+      btn.disabled = false;
+    }
+  },
+  
+  logout() {
+    localStorage.removeItem('kg_auth_user');
+    this.user = null;
+    window.location.reload();
+  },
+
+  hasAccess(page) {
+    if (!this.user) return false;
+    const r = this.user.role;
+    if (r === 'ADMIN') return true;
+    if (r === 'KARYAWAN') return page === 'input';
+    if (r === 'OWNER') return ['overview', 'transaksi', 'penjualan', 'laporan'].includes(page);
+    return false;
+  }
+};
+
 const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const BULAN_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
@@ -1404,13 +1472,40 @@ const App = {
   inputTab: 'kas',
 
   async init() {
+    Auth.init();
+    
+    if (!Auth.user) {
+      const loginContainer = document.getElementById('login-container');
+      const dashContainer = document.getElementById('dashboard-container');
+      if (loginContainer) loginContainer.style.display = 'flex';
+      if (dashContainer) dashContainer.style.display = 'none';
+      return; 
+    }
+    
+    const loginContainer = document.getElementById('login-container');
+    const dashContainer = document.getElementById('dashboard-container');
+    if (loginContainer) loginContainer.style.display = 'none';
+    if (dashContainer) dashContainer.style.display = 'block';
+    
+    document.querySelectorAll('.nav-link[data-page]').forEach(btn => {
+      if (!Auth.hasAccess(btn.dataset.page)) {
+        btn.style.display = 'none';
+      }
+    });
+
     await Store.init();
     this._setupNav();
     this._setupCalendarFilters();
     this._setupTxFilters();
     this._setupForm();
     this._setupModals();
-    this.go('overview');
+    
+    if (Auth.user.role === 'KARYAWAN') {
+      this.go('input');
+    } else {
+      this.go('overview');
+    }
+    
     setText('badge-tx', Store._transactions.length);
     if (Store._invalidDates > 0) {
       setTimeout(() => toast(`⚠️ ${Store._invalidDates} baris dengan tanggal tidak valid dilewati.`, 'error'), 500);
@@ -1426,6 +1521,10 @@ const App = {
   },
 
   go(page) {
+    if (!Auth.hasAccess(page)) {
+      toast('Akses Ditolak: Anda tidak memiliki izin untuk halaman ini.', 'error');
+      return;
+    }
     document.querySelectorAll('.nav-link[data-page]').forEach(b => b.classList.toggle('active', b.dataset.page === page));
     document.querySelectorAll('.page-section').forEach(s => s.classList.toggle('active', s.id === `page-${page}`));
     window.scrollTo({ top: 0, behavior: 'smooth' });
