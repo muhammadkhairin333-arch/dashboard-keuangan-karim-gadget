@@ -1620,6 +1620,9 @@ const App = {
       document.body.classList.add('user-mode');
       const chip = document.getElementById('nav-user-chip');
       if (chip) chip.style.display = 'none';
+      this._activePage = 'input';
+    } else {
+      this._activePage = 'overview';
     }
 
     await Store.init();
@@ -1631,11 +1634,7 @@ const App = {
     
     this._rendered = true;
 
-    if (u.role === 'USER') {
-      this.go('input');
-    } else {
-      this.go('overview');
-    }
+    this.go(this._activePage);
     
     setText('badge-tx', Store._transactions.length);
     if (Store._invalidDates > 0) {
