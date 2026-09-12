@@ -279,26 +279,26 @@ function getAvailableYears(arr, field) {
 // ============ CATEGORY MAPPER ============
 function mapCategory(raw = '', desc = '') {
   const k = raw.trim();
-  const d = (desc || '').toLowerCase();
+  const exactMatches = ['Pendapatan Utama', 'Penjualan lainnya', 'Inventory', 'Biaya Operasional', 'Biaya Bank dan Administrasi', 'Ekuitas dan Aset'];
+  if (exactMatches.includes(k)) return k;
   
-  if (k === 'Penjualan Utama' || k === 'Pendapatan Lainnya' || k === 'Pendapatan') {
-    if (/iphone|ipad|jual|pelunasan|dp|tablet|laptop|aksesoris|samsung|xiaomi|oppo|vivo|realme/.test(d) || k === 'Penjualan Utama') return 'Penjualan Utama';
-    return 'Pendapatan Lainnya';
-  }
-  if (k === 'HPP (Inventory)' || k === 'Inventory' || k === 'Invenroty') return 'Inventory';
-  if (k === 'Biaya Operasional' || k === 'Operasional' || k === 'Expenses') return 'Operasional';
-  if (k === 'Biaya Bank & Admin' || k === 'Expensess' || k === 'Biaya Bank') return 'Expensess';
-  if (k === 'Ekuitas & Aset' || k === 'Ekuitas' || k === 'Deviden' || k === 'Investasi' || k === 'Equity') return 'Ekuitas';
+  const d = (desc || '').toLowerCase();
+  if (k === 'Penjualan Utama') return 'Pendapatan Utama';
+  if (k === 'Pendapatan Lainnya' || k === 'Pendapatan') return 'Penjualan lainnya';
+  if (k === 'HPP (Inventory)' || k === 'Invenroty') return 'Inventory';
+  if (k === 'Operasional' || k === 'Expenses') return 'Biaya Operasional';
+  if (k === 'Biaya Bank & Admin' || k === 'Expensess' || k === 'Biaya Bank') return 'Biaya Bank dan Administrasi';
+  if (k === 'Ekuitas & Aset' || k === 'Ekuitas' || k === 'Deviden' || k === 'Investasi' || k === 'Equity') return 'Ekuitas dan Aset';
   return k || 'Lainnya';
 }
 
 const BADGE_CLASS = {
-  'Penjualan Utama': 'badge badge-penjualan',
-  'Pendapatan Lainnya': 'badge badge-lainnya',
+  'Pendapatan Utama': 'badge badge-penjualan',
+  'Penjualan lainnya': 'badge badge-lainnya',
   'Inventory': 'badge badge-hpp',
-  'Operasional': 'badge badge-operasional',
-  'Expensess': 'badge badge-bank',
-  'Ekuitas': 'badge badge-ekuitas',
+  'Biaya Operasional': 'badge badge-operasional',
+  'Biaya Bank dan Administrasi': 'badge badge-bank',
+  'Ekuitas dan Aset': 'badge badge-ekuitas',
 };
 function catBadge(kat) {
   const cls = BADGE_CLASS[kat] || 'badge badge-bank';
@@ -776,7 +776,7 @@ const Store = {
   getCategorySpend(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     const cats = {};
-    const validExpense = ['Inventory', 'Operasional', 'Expensess', 'Ekuitas'];
+    const validExpense = ['Inventory', 'Biaya Operasional', 'Biaya Bank dan Administrasi', 'Ekuitas dan Aset'];
     filtered.forEach(t => {
       if ((t.uangKeluar || 0) > 0) {
         const k = validExpense.includes(t.kategori) ? t.kategori : 'Lainnya';
@@ -790,7 +790,7 @@ const Store = {
   getIncomeSpend(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     const cats = {};
-    const validIncome = ['Penjualan Utama', 'Pendapatan Lainnya', 'Ekuitas'];
+    const validIncome = ['Pendapatan Utama', 'Penjualan lainnya', 'Ekuitas dan Aset'];
     filtered.forEach(t => {
       if ((t.uangMasuk || 0) > 0) {
         const k = validIncome.includes(t.kategori) ? t.kategori : 'Lainnya';
@@ -1278,7 +1278,7 @@ const Charts = {
   renderDonut(cats) {
     this.destroy('donut');
     const ctx = el('chart-donut'); if (!ctx) return;
-    const colors = { 'Inventory': '#ef4444', 'Operasional': '#f59e0b', 'Expensess': '#8b5cf6', 'Ekuitas': '#ec4899', 'Pendapatan': '#10b981', 'Lainnya': '#94a3b8' };
+    const colors = { 'Inventory': '#EF4444', 'Biaya Operasional': '#F97316', 'Biaya Bank dan Administrasi': '#EAB308', 'Ekuitas dan Aset': '#EC4899', 'Lainnya': '#64748B' };
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
     let msgEl = document.getElementById('donut-empty-msg');
@@ -1354,7 +1354,7 @@ const Charts = {
   renderIncomeDonut(cats) {
     this.destroy('donutIncome');
     const ctx = el('chart-donut-income'); if (!ctx) return;
-    const colors = { 'Penjualan Utama': '#10b981', 'Pendapatan Lainnya': '#0ea5e9', 'Pendapatan': '#10b981', 'Ekuitas': '#ec4899' };
+    const colors = { 'Pendapatan Utama': '#10B981', 'Penjualan lainnya': '#3B82F6', 'Ekuitas dan Aset': '#EC4899', 'Lainnya': '#64748B' };
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
     let msgEl = document.getElementById('donut-income-empty-msg');
