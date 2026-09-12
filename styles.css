@@ -1568,13 +1568,13 @@ body::before {
   background: currentColor;
 }
 
-.badge-pendapatan-utama { background: rgba(22,163,74,0.1); color: #16a34a; border: 1px solid rgba(22,163,74,0.2); }
-.badge-penjualan-lainnya { background: rgba(74,222,128,0.1); color: #22c55e; border: 1px solid rgba(74,222,128,0.2); }
-.badge-inventory { background: rgba(29,78,216,0.1); color: #1d4ed8; border: 1px solid rgba(29,78,216,0.2); }
-.badge-operasional { background: rgba(6,182,212,0.1); color: #0891b2; border: 1px solid rgba(6,182,212,0.2); }
-.badge-bank { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
-.badge-ekuitas { background: rgba(234,179,8,0.1); color: #ca8a04; border: 1px solid rgba(234,179,8,0.2); }
-.badge-lainnya { background: rgba(148,163,184,0.1); color: #64748b; border: 1px solid rgba(148,163,184,0.2); }
+.badge-pendapatan-utama { background: rgba(16,185,129,0.1); color: #10B981; border: 1px solid rgba(16,185,129,0.2); }
+.badge-penjualan-lainnya { background: rgba(59,130,246,0.1); color: #3B82F6; border: 1px solid rgba(59,130,246,0.2); }
+.badge-inventory { background: rgba(239,68,68,0.1); color: #EF4444; border: 1px solid rgba(239,68,68,0.2); }
+.badge-operasional { background: rgba(249,115,22,0.1); color: #F97316; border: 1px solid rgba(249,115,22,0.2); }
+.badge-bank { background: rgba(234,179,8,0.1); color: #EAB308; border: 1px solid rgba(234,179,8,0.2); }
+.badge-ekuitas { background: rgba(236,72,153,0.1); color: #EC4899; border: 1px solid rgba(236,72,153,0.2); }
+.badge-lainnya { background: rgba(100,116,139,0.1); color: #64748B; border: 1px solid rgba(100,116,139,0.2); }
 
 /* Table cell color variants */
 .cell-in { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 13px; color: var(--color-income); }
