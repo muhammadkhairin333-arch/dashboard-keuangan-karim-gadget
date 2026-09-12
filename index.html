@@ -13,6 +13,16 @@
 </head>
 <body>
 
+<!-- ===================== GLOBAL LOADER ===================== -->
+<div id="global-loader" class="global-loader" style="display: none;">
+  <div class="loader-content">
+    <div class="spinner"></div>
+    <h3 id="loader-text">Memuat Data...</h3>
+    <p id="loader-subtext">Sinkronisasi terbaru dari server</p>
+    <button id="loader-retry-btn" class="login-btn" style="display: none; width: auto; padding: 0.75rem 1.5rem; margin-top: 1rem;" onclick="window.location.reload()">Coba Lagi</button>
+  </div>
+</div>
+
 <!-- ===================== LOGIN FORM ===================== -->
 <div class="login-container" id="login-container" style="display: flex;">
   <div class="login-card">
