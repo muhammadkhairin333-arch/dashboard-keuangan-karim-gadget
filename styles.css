@@ -2334,17 +2334,17 @@ body::before {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #f5f5f7 0%, #e8e8ed 100%);
+  background-color: #F3F4F6;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   width: 100%;
 }
 
 .login-card {
-  background: #ffffff;
+  background: #FFFFFF;
   padding: 3rem 2.5rem;
-  border-radius: 20px;
-  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.12);
-  width: 100%;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+  width: 90%;
   max-width: 400px;
 }
 
@@ -2356,22 +2356,22 @@ body::before {
 .login-title {
   margin: 0;
   font-size: 1.5rem;
-  font-weight: 600;
-  color: #1d1d1f;
+  font-weight: 700;
+  color: #111827;
   letter-spacing: -0.01em;
 }
 
 .login-subtitle {
   margin: 0.25rem 0 0;
-  color: #86868b;
+  color: #6B7280;
   font-size: 0.95rem;
 }
 
 .login-alert {
-  background-color: #fff2f2;
-  color: #d93025;
-  padding: 0.875rem 1rem;
-  border-radius: 12px;
+  background-color: #FEF2F2;
+  color: #991B1B;
+  padding: 1rem;
+  border-radius: 8px;
   margin-bottom: 1.5rem;
   font-size: 0.9rem;
   font-weight: 500;
@@ -2386,65 +2386,48 @@ body::before {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
-  color: #1d1d1f;
-  font-size: 0.85rem;
+  color: #374151;
+  font-size: 0.9rem;
 }
 
 .login-form input {
   width: 100%;
-  padding: 0.875rem 1rem;
-  border: 1px solid #d2d2d7;
+  padding: 1rem 1.25rem;
+  border: 1px solid #D1D5DB;
   border-radius: 12px;
   font-size: 1rem;
-  color: #1d1d1f;
-  background-color: #fbfbfd;
-  transition: all 0.25s ease;
+  color: #111827;
+  background-color: #F9FAFB;
+  transition: all 0.3s ease;
   box-sizing: border-box;
 }
 
 .login-form input::placeholder {
-  color: #86868b;
+  color: #9CA3AF;
 }
 
 .login-form input:focus {
   outline: none;
-  border-color: #000000;
-  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.05);
-  background-color: #ffffff;
+  border-color: #111827;
+  box-shadow: 0 0 0 4px rgba(17, 24, 39, 0.1);
+  background-color: #FFFFFF;
 }
 
 .login-btn {
   width: 100%;
-  padding: 0.875rem;
-  background-color: #000000;
-  color: #ffffff;
+  padding: 1rem;
+  background-color: #111827;
+  color: #FFFFFF;
   border: none;
   border-radius: 12px;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-top: 0.5rem;
+  margin-top: 1rem;
 }
 
-.login-btn:hover {
-  background-color: #333333;
+.login-btn:hover, .login-btn:active {
+  background-color: #374151;
   transform: scale(0.98);
-}
-
-.login-footer {
-  margin-top: 2rem;
-  text-align: center;
-  font-size: 0.85rem;
-  color: #86868b;
-}
-
-.login-footer a {
-  color: #0066cc;
-  text-decoration: none;
-  font-weight: 400;
-}
-
-.login-footer a:hover {
-  text-decoration: underline;
 }
