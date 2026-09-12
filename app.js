@@ -1391,10 +1391,32 @@ const Charts = {
 
   renderTopProducts(products, mode = 'profit') {
     this.destroy('top');
-    const ctx = el('chart-topproduct'); if (!ctx) return;
+    // Restore canvas if it was replaced by empty state
+    let ctx = el('chart-topproduct');
+    if (!ctx) {
+      const wrapper = document.querySelector('.chart-h260');
+      if (wrapper) {
+        wrapper.innerHTML = '<canvas id="chart-topproduct"></canvas>';
+        ctx = el('chart-topproduct');
+      }
+      if (!ctx) return;
+    }
     const COLORS = ['#3b82f6', '#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
     const titleEl = el('title-topproduct');
     if (titleEl) titleEl.textContent = mode === 'count' ? '🏆 Top Produk (Terjual)' : '🏆 Top Produk (Profit)';
+
+    // Handle empty data — show message instead of blank chart
+    if (!products || products.length === 0) {
+      const parent = ctx.parentElement;
+      if (parent) {
+        parent.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:200px;color:var(--text-muted);gap:8px;">
+          <div style="font-size:36px;">📭</div>
+          <div style="font-size:14px;font-weight:500;">Belum ada data ${mode === 'count' ? 'unit terjual' : 'profit'}</div>
+          <div style="font-size:12px;color:var(--text-tertiary);">Coba ubah periode filter untuk melihat data</div>
+        </div>`;
+      }
+      return;
+    }
 
     const isMobile = window.innerWidth < 600;
     const shortFmt = (v) => {
@@ -2094,8 +2116,11 @@ const App = {
 
   _updateMoneyFields() {
     const kat = el('f-kategori') ? el('f-kategori').value : '';
-    const income = ['Penjualan Utama', 'Pendapatan Lainnya'];
-    const expense = ['Inventory', 'Operasional', 'Expensess'];
+    // Penjualan Utama & Pendapatan lainnya → hanya uang masuk
+    const income = ['Penjualan Utama', 'Pendapatan lainnya'];
+    // Inventory, Biaya Operasional & Biaya Bank → hanya uang keluar
+    const expense = ['Inventory', 'Biaya Operasional', 'Biaya Bank'];
+    // Ekuitas & aset, Lainnya → both (default behavior, not in either list)
     if (el('fg-masuk')) el('fg-masuk').style.display = expense.includes(kat) ? 'none' : 'flex';
     if (el('fg-keluar')) el('fg-keluar').style.display = income.includes(kat) ? 'none' : 'flex';
     if (income.includes(kat) && el('f-keluar')) el('f-keluar').value = '';
