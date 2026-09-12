@@ -84,7 +84,7 @@ const Auth = {
     const userEl = document.getElementById('login-username');
     const passEl = document.getElementById('login-password');
     const btn = document.getElementById('login-btn');
-    const alert = document.getElementById('login-alert');
+    const alertEl = document.getElementById('login-alert');
     
     if (!userEl || !passEl) return;
     
@@ -93,10 +93,9 @@ const Auth = {
     
     btn.textContent = 'Memeriksa...';
     btn.disabled = true;
-    alert.style.display = 'none';
+    alertEl.style.display = 'none';
     
-    await new Promise(r => setTimeout(r, 600));
-    
+    // Tidak ada artificial delay — langsung proses
     let role = '';
     if (u === 'admin' && p === 'admin123') role = 'ADMIN';
     else if ((u === 'khairin' && p === 'khairin123') || (u === 'ridho' && p === 'ridho123')) role = 'OWNER';
@@ -105,10 +104,12 @@ const Auth = {
     if (role) {
       this.user = { username: u, role: role };
       localStorage.setItem('kg_auth_user', JSON.stringify(this.user));
-      window.location.reload();
+      // SPA transition: tidak reload halaman, langsung init dashboard
+      // Ini jauh lebih cepat karena tidak perlu fetch ulang dari nol
+      await App.init();
     } else {
-      alert.textContent = 'Username atau password salah!';
-      alert.style.display = 'block';
+      alertEl.textContent = 'Username atau password salah!';
+      alertEl.style.display = 'block';
       btn.textContent = 'Sign In';
       btn.disabled = false;
     }
@@ -317,6 +318,20 @@ const Store = {
   _networth: [],
   _invalidDates: 0,
 
+  // ── Konstanta Cache TTL (5 menit) ──────────────────────────────────────────
+  // Jika cache sudah lebih dari TTL_MS, paksa refresh dari GSheets meski ada cache.
+  // Ini penting agar multi-user selalu mendapat data terbaru dalam jangka waktu wajar.
+  _CACHE_TTL_MS: 5 * 60 * 1000,
+
+  _isCacheStale() {
+    const ts = parseInt(localStorage.getItem('kg_cache_ts') || '0', 10);
+    return (Date.now() - ts) > this._CACHE_TTL_MS;
+  },
+
+  _stampCache() {
+    localStorage.setItem('kg_cache_ts', String(Date.now()));
+  },
+
   async init() {
     const loader = document.getElementById('global-loader');
 
@@ -364,14 +379,15 @@ const Store = {
     }
 
     // Jika ada cache/data awal → sembunyikan loader segera & render dulu
+    // Kecuali jika cache sudah stale (> TTL), tetap tampilkan cache tapi tandai perlu refresh
     const hasLocalData = this._transactions.length > 0 || this._sales.length > 0;
+    const cacheStale = this._isCacheStale();
     if (hasLocalData) {
       if (loader) {
         loader.classList.add('fade-out');
         setTimeout(() => loader.style.display = 'none', 300);
       }
-      // Render langsung dengan data lokal (App akan dipanggil setelah init() selesai,
-      // tapi kita trigger render awal di sini juga agar terasa instan)
+      // Render langsung dengan data lokal
       if (typeof App !== 'undefined' && App._rendered) {
         App.render();
       }
@@ -389,8 +405,14 @@ const Store = {
     }
 
     // ── LANGKAH 2: Fetch dari Google Sheets di background ───────────────────
-    // Jika ada data lokal: fetch secara silent (tanpa blok loader).
-    // Jika belum ada data: fetch dengan loader penuh.
+    // Selalu fetch jika: (a) tidak ada data lokal, atau (b) cache sudah stale
+    // Jika data lokal masih fresh (< TTL): skip fetch untuk hemat bandwidth
+    if (hasLocalData && !cacheStale) {
+      // Cache masih fresh → tidak perlu fetch, langsung selesai
+      toast('✅ Data sudah terkini (cache segar)', 'info');
+      return;
+    }
+
     if (hasLocalData) {
       toast('🔄 Memperbarui data dari server...', 'info');
     } else {
@@ -469,10 +491,11 @@ const Store = {
         this._networth = data.networth || [];
         this._saveNetworthLocal();
 
+        this._stampCache(); // Update timestamp cache setelah berhasil fetch
         toast('✅ Tersinkronisasi dengan Google Sheets!', 'success');
 
-        // Jika sebelumnya sudah ada data lokal → re-render secara silent
-        if (hasLocalData && typeof App !== 'undefined' && App._rendered) {
+        // Re-render halaman aktif dengan data terbaru
+        if (typeof App !== 'undefined' && App._rendered) {
           App.render();
         }
 
@@ -1592,17 +1615,27 @@ const App = {
     this._setupForm();
     this._setupModals();
     
+    this._rendered = true; // Tandai sudah render SEBELUM go() agar background fetch bisa trigger render
+
     if (Auth.user.role === 'USER') {
       this.go('input');
     } else {
       this.go('overview');
     }
     
-    this._rendered = true; // Tandai sudah render agar background refresh bisa berjalan
     setText('badge-tx', Store._transactions.length);
     if (Store._invalidDates > 0) {
       setTimeout(() => toast(`⚠️ ${Store._invalidDates} baris dengan tanggal tidak valid dilewati.`, 'error'), 500);
     }
+
+    // ── Auto-refresh setiap 5 menit untuk sinkronisasi multi-user ──────────
+    // Ini memastikan jika ada orang lain yang input data dari device lain,
+    // semua user yang sudah login akan mendapat update otomatis tanpa reload.
+    if (this._autoRefreshTimer) clearInterval(this._autoRefreshTimer);
+    this._autoRefreshTimer = setInterval(async () => {
+      if (document.hidden) return; // Jangan refresh jika tab/app sedang di background
+      await Store.init();
+    }, 5 * 60 * 1000); // 5 menit
   },
 
   _setupNav() {
