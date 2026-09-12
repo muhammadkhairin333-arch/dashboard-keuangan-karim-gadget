@@ -26,26 +26,27 @@
 <!-- ===================== LOGIN FORM ===================== -->
 <div class="login-container" id="login-container" style="display: flex;">
   <div class="login-card">
-    <div class="login-header">
-      <h2 class="login-title">Karim Gadget ID</h2>
-      <p class="login-subtitle">Login Dashboard</p>
+    <div class="login-logo-wrap">
+      <img src="Logo baru.jpeg" alt="Karim Gadget" class="login-logo" />
     </div>
-    
+    <div class="login-header">
+      <h2 class="login-title">Selamat Datang</h2>
+      <p class="login-subtitle">Masuk ke Dashboard Karim Gadget ID</p>
+    </div>
+
     <div class="login-alert" id="login-alert" style="display: none;"></div>
-    
+
     <form id="login-form" class="login-form">
       <div class="form-group">
         <label for="login-username">Username</label>
         <input type="text" id="login-username" placeholder="Masukkan username" required autocomplete="username">
       </div>
-      
       <div class="form-group">
         <label for="login-password">Password</label>
         <input type="password" id="login-password" placeholder="Masukkan password" required autocomplete="current-password">
       </div>
-      
       <button type="submit" class="login-btn" id="login-btn">
-        Sign In
+        Sign In →
       </button>
     </form>
   </div>
@@ -92,8 +93,16 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           <span>Laporan</span>
         </button>
-        <div style="flex:1"></div>
-        <button class="nav-link text-red" onclick="Auth.logout()" style="color:var(--red);">
+      </div>
+
+      <!-- Right side: user chip + logout -->
+      <div class="nav-right" id="nav-right">
+        <div class="nav-user-chip" id="nav-user-chip">
+          <div class="nav-user-avatar" id="nav-avatar">K</div>
+          <span class="nav-user-name" id="nav-username">User</span>
+          <span class="nav-role-badge" id="nav-role-badge"></span>
+        </div>
+        <button class="nav-logout" onclick="Auth.logout()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           <span>Keluar</span>
         </button>
