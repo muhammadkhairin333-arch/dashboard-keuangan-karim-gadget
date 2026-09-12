@@ -191,24 +191,25 @@ function mapCategory(raw = '', desc = '') {
   const k = raw.trim();
   const d = (desc || '').toLowerCase();
   
-  if (k === 'Penjualan Utama' || k === 'Pendapatan Lainnya' || k === 'Pendapatan') {
-    if (/iphone|ipad|jual|pelunasan|dp|tablet|laptop|aksesoris|samsung|xiaomi|oppo|vivo|realme/.test(d) || k === 'Penjualan Utama') return 'Penjualan Utama';
-    return 'Pendapatan Lainnya';
+  if (k === 'Pendapatan Utama' || k === 'Penjualan Utama' || k === 'Pendapatan') {
+    if (/iphone|ipad|jual|pelunasan|dp|tablet|laptop|aksesoris|samsung|xiaomi|oppo|vivo|realme/.test(d) || k === 'Pendapatan Utama' || k === 'Penjualan Utama') return 'Pendapatan Utama';
+    return 'Penjualan lainnya';
   }
-  if (k === 'HPP (Inventory)' || k === 'Inventory' || k === 'Invenroty') return 'HPP (Inventory)';
+  if (k === 'Penjualan lainnya' || k === 'Pendapatan Lainnya') return 'Penjualan lainnya';
+  if (k === 'Inventory' || k === 'HPP (Inventory)' || k === 'Invenroty') return 'Inventory';
   if (k === 'Biaya Operasional' || k === 'Operasional' || k === 'Expenses') return 'Biaya Operasional';
-  if (k === 'Biaya Bank & Admin' || k === 'Expensess' || k === 'Biaya Bank' || k === 'Biaya Admin Bank') return 'Biaya Bank & Admin';
-  if (k === 'Ekuitas & Aset' || k === 'Ekuitas' || k === 'Deviden' || k === 'Investasi' || k === 'Equity') return 'Ekuitas & Aset';
+  if (k === 'Biaya Bank' || k === 'Biaya Bank & Admin' || k === 'Expensess' || k === 'Biaya Admin Bank') return 'Biaya Bank';
+  if (k === 'Ekuitas & aset' || k === 'Ekuitas & Aset' || k === 'Ekuitas' || k === 'Deviden' || k === 'Investasi' || k === 'Equity') return 'Ekuitas & aset';
   return k || 'Lainnya';
 }
 
 const BADGE_CLASS = {
-  'Penjualan Utama': 'badge badge-penjualan',
-  'Pendapatan Lainnya': 'badge badge-pendapatan-lain',
-  'HPP (Inventory)': 'badge badge-hpp',
+  'Pendapatan Utama': 'badge badge-pendapatan-utama',
+  'Penjualan lainnya': 'badge badge-penjualan-lainnya',
+  'Inventory': 'badge badge-inventory',
   'Biaya Operasional': 'badge badge-operasional',
-  'Biaya Bank & Admin': 'badge badge-bank',
-  'Ekuitas & Aset': 'badge badge-ekuitas',
+  'Biaya Bank': 'badge badge-bank',
+  'Ekuitas & aset': 'badge badge-ekuitas',
   'Lainnya': 'badge badge-lainnya'
 };
 function catBadge(kat) {
@@ -1100,7 +1101,15 @@ const Charts = {
   renderDonut(cats) {
     this.destroy('donut');
     const ctx = el('chart-donut'); if (!ctx) return;
-    const colors = { 'HPP (Inventory)': '#ef4444', 'Biaya Operasional': '#f59e0b', 'Biaya Bank & Admin': '#8b5cf6', 'Ekuitas & Aset': '#be185d', 'Penjualan Utama': '#10b981', 'Pendapatan Lainnya': '#0f766e', 'Lainnya': '#475569' };
+    const colors = { 
+      'Pendapatan Utama': '#16a34a', 
+      'Penjualan lainnya': '#4ade80', 
+      'Inventory': '#1d4ed8', 
+      'Biaya Operasional': '#06b6d4', 
+      'Biaya Bank': '#ef4444', 
+      'Ekuitas & aset': '#eab308', 
+      'Lainnya': '#94a3b8' 
+    };
     const labels = Object.keys(cats);
     const wrapper = ctx.closest('.chart-h280') || ctx.parentElement;
     let msgEl = document.getElementById('donut-empty-msg');
@@ -1844,8 +1853,8 @@ const App = {
 
   _updateMoneyFields() {
     const kat = el('f-kategori') ? el('f-kategori').value : '';
-    const income = ['Penjualan Utama', 'Pendapatan Lainnya'];
-    const expense = ['HPP (Inventory)', 'Biaya Operasional', 'Biaya Bank & Admin'];
+    const income = ['Pendapatan Utama', 'Penjualan lainnya'];
+    const expense = ['Inventory', 'Biaya Operasional', 'Biaya Bank'];
     if (el('fg-masuk')) el('fg-masuk').style.display = expense.includes(kat) ? 'none' : 'flex';
     if (el('fg-keluar')) el('fg-keluar').style.display = income.includes(kat) ? 'none' : 'flex';
     if (income.includes(kat) && el('f-keluar')) el('f-keluar').value = '';
