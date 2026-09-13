@@ -523,8 +523,11 @@ const Store = {
     let r = filter ? applyCalendarFilter(this._transactions, 'tanggal', filter) : [...this._transactions];
     if (kat) r = r.filter(t => t.kategori === kat);
     if (search) {
-      const q = search.toLowerCase();
-      r = r.filter(t => (String(t.deskripsi || '')).toLowerCase().includes(q));
+      const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
+      r = r.filter(t => {
+        const text = String(t.deskripsi || '').toLowerCase();
+        return terms.every(term => text.includes(term));
+      });
     }
     r.sort((a, b) => {
       let va = a[sortBy], vb = b[sortBy];
@@ -824,8 +827,12 @@ const Store = {
     let r = filter ? applyCalendarFilter(this._sales, 'tanggalMasuk', filter) : [...this._sales];
     if (!filter || filter.mode === 'semua') r = [...this._sales];
     if (search) {
-      const q = search.toLowerCase();
-      r = r.filter(s => (String(s.tipeModel || s.tipe || '')).toLowerCase().includes(q) || (String(s.nota || '')).toLowerCase().includes(q));
+      const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
+      r = r.filter(s => {
+        const text1 = String(s.tipeModel || s.tipe || '').toLowerCase();
+        const text2 = String(s.nota || '').toLowerCase();
+        return terms.every(term => text1.includes(term) || text2.includes(term));
+      });
     }
     r.sort((a, b) => {
       let va = a[sortBy], vb = b[sortBy];
