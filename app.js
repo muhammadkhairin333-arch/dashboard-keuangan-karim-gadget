@@ -279,20 +279,15 @@ function getAvailableYears(arr, field) {
 // ============ CATEGORY MAPPER ============
 function mapCategory(raw = '', desc = '') {
   const k = raw.trim();
-  const exactMatches = ['Penjualan Utama', 'Pendapatan Utama', 'Pendapatan lainnya', 'Penjualan lainnya', 'Inventory', 'Biaya Operasional', 'Biaya Bank', 'Ekuitas & aset'];
-  if (exactMatches.includes(k)) {
-    // Normalize aliases so charts group properly
-    if (k === 'Pendapatan Utama') return 'Penjualan Utama';
-    if (k === 'Penjualan lainnya') return 'Pendapatan lainnya';
-    return k;
-  }
+  const kLower = k.toLowerCase();
   
-  const d = (desc || '').toLowerCase();
-  if (k === 'Pendapatan Lainnya' || k === 'Pendapatan') return 'Pendapatan lainnya';
-  if (k === 'HPP (Inventory)' || k === 'Invenroty') return 'Inventory';
-  if (k === 'Operasional' || k === 'Expenses') return 'Biaya Operasional';
-  if (k === 'Biaya Bank & Admin' || k === 'Biaya Bank dan Administrasi' || k === 'Expensess') return 'Biaya Bank';
-  if (k === 'Ekuitas & Aset' || k === 'Ekuitas dan Aset' || k === 'Ekuitas' || k === 'Deviden' || k === 'Investasi' || k === 'Equity') return 'Ekuitas & aset';
+  if (kLower === 'penjualan utama' || kLower === 'pendapatan utama') return 'Penjualan Utama';
+  if (kLower === 'pendapatan lainnya' || kLower === 'penjualan lainnya' || kLower === 'pendapatan') return 'Pendapatan lainnya';
+  if (kLower === 'inventory' || kLower === 'hpp (inventory)' || kLower === 'invenroty') return 'Inventory';
+  if (kLower === 'biaya operasional' || kLower === 'operasional' || kLower === 'expenses') return 'Biaya Operasional';
+  if (kLower === 'biaya bank' || kLower === 'biaya bank & admin' || kLower === 'biaya bank dan administrasi' || kLower === 'expensess') return 'Biaya Bank';
+  if (kLower === 'ekuitas & aset' || kLower === 'ekuitas dan aset' || kLower === 'ekuitas' || kLower === 'deviden' || kLower === 'investasi' || kLower === 'equity') return 'Ekuitas & aset';
+  
   return k || 'Lainnya';
 }
 
@@ -1804,7 +1799,11 @@ const App = {
     }
 
     const srch = document.getElementById('filter-search');
-    if (srch) srch.oninput = e => { this.tx.search = e.target.value; this.tx.page = 1; this._renderTx(); };
+    if (srch) {
+      srch.oninput = e => { this.tx.search = e.target.value; this.tx.page = 1; this._renderTx(); };
+      srch.addEventListener('keyup', e => { if (e.key === 'Enter') e.target.blur(); });
+      srch.addEventListener('search', e => e.target.blur());
+    }
 
     const txFilterWrap = el('tx-filter-wrap');
     if (txFilterWrap) {
@@ -1813,7 +1812,11 @@ const App = {
     }
 
     const salesSrch = document.getElementById('sales-search');
-    if (salesSrch) salesSrch.oninput = e => { this.sales.search = e.target.value; this.sales.page = 1; this._renderSales(); };
+    if (salesSrch) {
+      salesSrch.oninput = e => { this.sales.search = e.target.value; this.sales.page = 1; this._renderSales(); };
+      salesSrch.addEventListener('keyup', e => { if (e.key === 'Enter') e.target.blur(); });
+      salesSrch.addEventListener('search', e => e.target.blur());
+    }
   },
 
   sortTx(field) {
