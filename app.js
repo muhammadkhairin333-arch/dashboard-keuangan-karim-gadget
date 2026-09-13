@@ -572,7 +572,7 @@ const Store = {
   },
 
   async updateTx(id, updates) {
-    const idx = this._transactions.findIndex(t => t.id === id);
+    const idx = this._transactions.findIndex(t => String(t.id) === String(id));
     if (idx === -1) return false;
     const merged = { ...this._transactions[idx], ...updates };
     this._transactions[idx] = merged;
@@ -594,13 +594,13 @@ const Store = {
   },
 
   deleteTx(id) {
-    const tx = this._transactions.find(t => t.id === id);
-    this._transactions = this._transactions.filter(t => t.id !== id);
+    const tx = this._transactions.find(t => String(t.id) === String(id));
+    this._transactions = this._transactions.filter(t => String(t.id) !== String(id));
     this._recalcAllSaldo();
     this._saveTxLocal();
     if (tx) {
       // Hapus dari pending queue jika ada
-      this._setPendingTx(this._getPendingTx().filter(p => p.id !== id));
+      this._setPendingTx(this._getPendingTx().filter(p => String(p.id) !== String(id)));
       // Kirim request hapus ke Google Sheets
       try {
         fetch(API_URL, {
@@ -888,7 +888,7 @@ const Store = {
   },
 
   async updateSale(id, updates) {
-    const idx = this._sales.findIndex(s => s.id === id);
+    const idx = this._sales.findIndex(s => String(s.id) === String(id));
     if (idx === -1) return false;
     const merged = { ...this._sales[idx], ...updates };
     if (merged.tanggalMasuk && merged.tanggalKeluar && isValidDate(merged.tanggalMasuk) && isValidDate(merged.tanggalKeluar)) {
@@ -919,9 +919,9 @@ const Store = {
   },
 
   async deleteSale(id) {
-    const sale = this._sales.find(s => s.id === id);
+    const sale = this._sales.find(s => String(s.id) === String(id));
     if (!sale) return false;
-    this._sales = this._sales.filter(s => s.id !== id);
+    this._sales = this._sales.filter(s => String(s.id) !== String(id));
     this._saveSalesLocal();
     // Hapus dari pending jika ada
     this._setPendingSales(this._getPendingSales().filter(p => p.nota !== sale.nota));
@@ -935,8 +935,8 @@ const Store = {
     return true;
   },
 
-  getSaleById(id) { return this._sales.find(s => s.id === id); },
-  getTxById(id) { return this._transactions.find(t => t.id === id); },
+  getSaleById(id) { return this._sales.find(s => String(s.id) === String(id)); },
+  getTxById(id) { return this._transactions.find(t => String(t.id) === String(id)); },
 
   getAvailableTxYears() { return getAvailableYears(this._transactions, 'tanggal'); },
   getAvailableSalesYears() {
