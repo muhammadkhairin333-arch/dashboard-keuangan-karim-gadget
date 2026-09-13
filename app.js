@@ -524,7 +524,7 @@ const Store = {
     if (kat) r = r.filter(t => t.kategori === kat);
     if (search) {
       const q = search.toLowerCase();
-      r = r.filter(t => (t.deskripsi || '').toLowerCase().includes(q));
+      r = r.filter(t => (String(t.deskripsi || '')).toLowerCase().includes(q));
     }
     r.sort((a, b) => {
       let va = a[sortBy], vb = b[sortBy];
@@ -825,7 +825,7 @@ const Store = {
     if (!filter || filter.mode === 'semua') r = [...this._sales];
     if (search) {
       const q = search.toLowerCase();
-      r = r.filter(s => (s.tipeModel || s.tipe || '').toLowerCase().includes(q) || (s.nota || '').toLowerCase().includes(q));
+      r = r.filter(s => (String(s.tipeModel || s.tipe || '')).toLowerCase().includes(q) || (String(s.nota || '')).toLowerCase().includes(q));
     }
     r.sort((a, b) => {
       let va = a[sortBy], vb = b[sortBy];
