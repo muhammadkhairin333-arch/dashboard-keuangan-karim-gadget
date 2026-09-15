@@ -749,6 +749,43 @@ const Store = {
     return cats;
   },
 
+  getDynamicNetworth() {
+    const dates = new Set();
+    this._transactions.forEach(t => { if (t.tanggal && isValidDate(t.tanggal)) dates.add(t.tanggal); });
+    this._sales.forEach(s => { 
+      if (s.tanggalMasuk && isValidDate(s.tanggalMasuk)) dates.add(s.tanggalMasuk); 
+      if (s.tanggalKeluar && isValidDate(s.tanggalKeluar)) dates.add(s.tanggalKeluar); 
+    });
+    
+    if (!dates.size) return [];
+    const sortedDates = Array.from(dates).sort();
+    
+    const nwData = [];
+    let txIdx = 0;
+    let currentKas = 0;
+    const sortedTxs = [...this._transactions].sort((a,b) => (a.tanggal||'').localeCompare(b.tanggal||''));
+    
+    sortedDates.forEach(date => {
+      while(txIdx < sortedTxs.length && sortedTxs[txIdx].tanggal <= date) {
+         const t = sortedTxs[txIdx];
+         currentKas = (t.saldo != null && t.saldo !== '') ? parseFloat(t.saldo) : (t.calcSaldo || 0);
+         txIdx++;
+      }
+      
+      let stok = 0;
+      this._sales.forEach(s => {
+        if (s.tanggalMasuk && s.tanggalMasuk <= date) {
+          if (!s.tanggalKeluar || s.tanggalKeluar > date) {
+            stok += parseFloat(s.hargaBeli || 0);
+          }
+        }
+      });
+      
+      nwData.push({ tanggal: date, kas: currentKas, stok, networth: currentKas + stok });
+    });
+    return nwData;
+  },
+
   getIncomeSpend(filter) {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     const cats = {};
@@ -1105,18 +1142,23 @@ const Charts = {
           titleFont: { family: 'Inter', weight: '700', size: 12 },
           bodyFont: { family: 'JetBrains Mono', size: 12 },
           padding: 12, cornerRadius: 8,
+          intersect: false, mode: 'index',
           ...tooltipExtra,
         },
         legend: {
-          labels: { font: { family: 'Inter', size: 11 }, padding: 14, usePointStyle: true }
+          labels: { font: { family: 'Inter', size: 11 }, padding: 14, usePointStyle: true, pointStyle: 'circle' }
         }
+      },
+      interaction: {
+        mode: 'index',
+        intersect: false,
       }
     };
   },
-  _scales(gridColor = 'rgba(0,0,0,0.05)') {
+  _scales(gridColor = 'rgba(0,0,0,0.03)') {
     return {
-      x: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } } },
-      y: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmtShort(v) } }
+      x: { grid: { display: false }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } } },
+      y: { grid: { color: gridColor, drawBorder: false, borderDash: [5, 5] }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmtShort(v) }, border: { display: false } }
     };
   },
 
@@ -1181,7 +1223,7 @@ const Charts = {
     d.plugins.legend.display = true;
 
     this._c.networth = new Chart(ctx, {
-      type: 'bar',
+      type: 'line',
       data: {
         labels: result.map(r => r.label),
         datasets: [
@@ -1190,11 +1232,18 @@ const Charts = {
             label: 'Net Worth',
             data: result.map(r => r.networth),
             borderColor: '#f59e0b',
-            backgroundColor: '#f59e0b',
-            borderWidth: 2.5,
-            tension: 0.3,
-            pointRadius: 3,
-            fill: false,
+            backgroundColor: (context) => {
+              const ctx = context.chart.ctx;
+              const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+              gradient.addColorStop(0, 'rgba(245,158,11,0.25)');
+              gradient.addColorStop(1, 'rgba(245,158,11,0.0)');
+              return gradient;
+            },
+            borderWidth: 2,
+            tension: 0.4,
+            pointRadius: 0, pointHoverRadius: 6, pointBackgroundColor: '#ffffff', pointBorderColor: '#f59e0b', pointBorderWidth: 2,
+            fill: true,
+            stack: 'line',
             order: 0
           },
           {
@@ -1202,7 +1251,11 @@ const Charts = {
             label: 'Stok Aset',
             data: result.map(r => r.stok),
             backgroundColor: '#3b82f6',
-            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+            borderWidth: 0,
+            borderRadius: { topLeft: 3, topRight: 3, bottomLeft: 0, bottomRight: 0 },
+            barPercentage: 0.25,
+            stack: 'bars',
+            hidden: true,
             order: 1
           },
           {
@@ -1210,7 +1263,11 @@ const Charts = {
             label: 'Kas (Liquid)',
             data: result.map(r => r.kas),
             backgroundColor: '#10b981',
-            borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 4, bottomRight: 4 },
+            borderWidth: 0,
+            borderRadius: 0,
+            barPercentage: 0.25,
+            stack: 'bars',
+            hidden: true,
             order: 2
           }
         ]
@@ -1218,8 +1275,8 @@ const Charts = {
       options: {
         ...d,
         scales: {
-          x: { stacked: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } } },
-          y: { stacked: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmtShort(v) } }
+          x: { stacked: true, grid: { display: false }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } }, border: { display: false } },
+          y: { stacked: true, grid: { color: 'rgba(0,0,0,0.03)', borderDash: [5, 5] }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmtShort(v) }, border: { display: false } }
         }
       }
     });
@@ -1234,7 +1291,19 @@ const Charts = {
       type: 'line', data: {
         labels: months.map(m => m.bulan),
         datasets: [
-          { label: 'Saldo', data: months.map(m => m.saldo), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', borderWidth: 2.5, fill: true, tension: 0.35, pointRadius: 3 }
+          { 
+            label: 'Saldo', 
+            data: months.map(m => m.saldo), 
+            borderColor: '#3b82f6', 
+            backgroundColor: (context) => {
+              const ctx = context.chart.ctx;
+              const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+              gradient.addColorStop(0, 'rgba(59,130,246,0.3)');
+              gradient.addColorStop(1, 'rgba(59,130,246,0.0)');
+              return gradient;
+            },
+            borderWidth: 2, fill: true, tension: 0.45, pointRadius: 0, pointHoverRadius: 6, pointBackgroundColor: '#ffffff', pointBorderColor: '#3b82f6', pointBorderWidth: 2
+          }
         ]
       },
       options: { ...d, scales: this._scales() }
@@ -1275,9 +1344,9 @@ const Charts = {
     const d = this._defaults({ callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)}` } });
     this._c.donut = new Chart(ctx, {
       type: 'doughnut', data: {
-        labels, datasets: [{ data: Object.values(cats), backgroundColor: labels.map(l => colors[l] || '#94a3b8'), borderWidth: 0, hoverOffset: 6 }]
+        labels, datasets: [{ data: Object.values(cats), backgroundColor: labels.map(l => colors[l] || '#94a3b8'), borderWidth: 0, hoverOffset: 8 }]
       },
-      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { display: false } } }
+      options: { ...d, cutout: '75%', plugins: { ...d.plugins, legend: { display: false } } }
     });
 
     // Build custom HTML legend with percentages
@@ -1350,9 +1419,9 @@ const Charts = {
     const d = this._defaults({ callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)}` } });
     this._c.donutIncome = new Chart(ctx, {
       type: 'doughnut', data: {
-        labels, datasets: [{ data: Object.values(cats), backgroundColor: labels.map(l => colors[l] || '#10b981'), borderWidth: 0, hoverOffset: 6 }]
+        labels, datasets: [{ data: Object.values(cats), backgroundColor: labels.map(l => colors[l] || '#10b981'), borderWidth: 0, hoverOffset: 8 }]
       },
-      options: { ...d, cutout: '68%', plugins: { ...d.plugins, legend: { display: false } } }
+      options: { ...d, cutout: '75%', plugins: { ...d.plugins, legend: { display: false } } }
     });
 
     if (card) {
@@ -1452,7 +1521,8 @@ const Charts = {
         datasets: [{ 
           data: products.map(p => mode === 'count' ? p.count : p.profit), 
           backgroundColor: products.map((_, i) => COLORS[i % COLORS.length]), 
-          borderRadius: 5 
+          borderRadius: 8,
+          barPercentage: 0.6
         }]
       },
       options: { 
@@ -1460,16 +1530,18 @@ const Charts = {
         indexAxis: 'y', 
         scales: { 
           x: { 
-            grid: { color: 'rgba(0,0,0,0.05)' }, 
+            grid: { color: 'rgba(0,0,0,0.03)', borderDash: [5, 5] }, 
             ticks: { 
               color: '#64748b', 
               font: { family: 'JetBrains Mono', size: 11 }, 
               callback: v => mode === 'count' ? v + 'x' : fmtShort(v) 
-            } 
+            },
+            border: { display: false }
           }, 
           y: { 
             grid: { display: false }, 
-            ticks: { color: '#334155', font: { family: 'Inter', size: 11 } } 
+            ticks: { color: '#334155', font: { family: 'Inter', size: 11 } },
+            border: { display: false }
           } 
         } 
       }
@@ -1484,11 +1556,17 @@ const Charts = {
       type: 'bar', data: {
         labels: months.map(m => m.bulan),
         datasets: [
-          { label: 'Pemasukan', data: months.map(m => m.masuk), backgroundColor: 'rgba(16,185,129,0.75)', borderColor: '#10b981', borderWidth: 1, borderRadius: 4 },
-          { label: 'Pengeluaran', data: months.map(m => m.keluar), backgroundColor: 'rgba(239,68,68,0.75)', borderColor: '#ef4444', borderWidth: 1, borderRadius: 4 }
+          { label: 'Pemasukan', data: months.map(m => m.masuk), backgroundColor: 'rgba(16,185,129,0.9)', borderColor: '#10b981', borderWidth: 0, borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 }, barPercentage: 0.6 },
+          { label: 'Pengeluaran', data: months.map(m => m.keluar), backgroundColor: 'rgba(239,68,68,0.9)', borderColor: '#ef4444', borderWidth: 0, borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 }, barPercentage: 0.6 }
         ]
       },
-      options: { ...d, scales: this._scales() }
+      options: { 
+        ...d, 
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } }, border: { display: false } },
+          y: { grid: { color: 'rgba(0,0,0,0.03)', borderDash: [5, 5] }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmtShort(v) }, border: { display: false } }
+        }
+      }
     });
   },
 
@@ -1500,7 +1578,19 @@ const Charts = {
     this._c.profit = new Chart(ctx, {
       type: 'line', data: {
         labels: months.map(m => m.bulan),
-        datasets: [{ label: 'Profit', data: months.map(m => m.profit), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 2.5, fill: true, tension: 0.35, pointRadius: 3 }]
+        datasets: [{ 
+          label: 'Profit', 
+          data: months.map(m => m.profit), 
+          borderColor: '#f59e0b', 
+          backgroundColor: (context) => {
+              const ctx = context.chart.ctx;
+              const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+              gradient.addColorStop(0, 'rgba(245,158,11,0.3)');
+              gradient.addColorStop(1, 'rgba(245,158,11,0.0)');
+              return gradient;
+          }, 
+          borderWidth: 3, fill: true, tension: 0.45, pointRadius: 0, pointHoverRadius: 6, pointBackgroundColor: '#ffffff', pointBorderColor: '#f59e0b', pointBorderWidth: 2
+        }]
       },
       options: { ...d, scales: this._scales() }
     });
@@ -1977,27 +2067,29 @@ const App = {
         } else {
           turnoverBadge = `<span class="turnover-badge slow">${days}h</span>`;
         }
-        const profitClass = (s.profit || 0) >= 0 ? 'profit-positive' : 'profit-negative';
+        const isLaku = !!s.tanggalKeluar;
+        const displayProfit = isLaku ? (s.profit || 0) : 0;
+        const profitClass = displayProfit >= 0 ? 'profit-positive' : 'profit-negative';
 
         let profitPct = '';
-        if (s.hargaBeli > 0 && s.tanggalKeluar) {
-          const pct = ((s.profit / s.hargaBeli) * 100).toFixed(1);
-          const color = s.profit >= 0 ? '#059669' : '#dc2626';
-          const bg = s.profit >= 0 ? '#d1fae5' : '#fee2e2';
+        if (s.hargaBeli > 0 && isLaku) {
+          const pct = ((displayProfit / s.hargaBeli) * 100).toFixed(1);
+          const color = displayProfit >= 0 ? '#059669' : '#dc2626';
+          const bg = displayProfit >= 0 ? '#d1fae5' : '#fee2e2';
           profitPct = `<div style="font-size:11px;color:${color};background:${bg};padding:2px 4px;border-radius:4px;display:inline-block;margin-top:2px;font-weight:600">${pct}%</div>`;
         }
 
-        const statusBadge = s.tanggalKeluar
+        const statusBadge = isLaku
           ? '<span class="status-badge sold">Terjual</span>'
           : '<span class="status-badge stok">Stok</span>';
         return `<tr>
           <td style="font-weight:700;color:var(--accent-blue)">${s.nota || '–'}</td>
           <td class="cell-date">${fmtDate(s.tanggalMasuk)}</td>
-          <td class="cell-date">${s.tanggalKeluar ? fmtDate(s.tanggalKeluar) : statusBadge}</td>
+          <td class="cell-date">${isLaku ? fmtDate(s.tanggalKeluar) : statusBadge}</td>
           <td class="cell-desc" style="max-width:220px">${s.tipeModel || s.tipe || '–'}</td>
           <td class="cell-money expense">${fmt(s.hargaBeli)}</td>
           <td class="cell-money income">${fmt(s.hargaJual)}</td>
-          <td class="cell-money ${profitClass}" style="line-height:1.2">${fmt(s.profit)}<br>${profitPct}</td>
+          <td class="cell-money ${profitClass}" style="line-height:1.2">${fmt(displayProfit)}<br>${profitPct}</td>
           <td>${turnoverBadge}</td>
           <td style="color:var(--text-muted);font-size:12px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.keterangan || '–'}</td>
           <td class="cell-action">
@@ -2252,7 +2344,7 @@ const App = {
     if (!isValidDate(tanggal)) { toast('Tanggal tidak valid!', 'error'); return; }
     if (!tipe) { toast('Isi tipe/model HP!', 'error'); return; }
     if (hargaBeli <= 0) { toast('Harga beli harus lebih dari 0!', 'error'); return; }
-    await Store.addSale({ nota: nota || `NOTA-${Date.now()}`, tanggalMasuk: tanggal, tanggalKeluar: null, tipeModel: tipe, tipe, hargaBeli, hargaJual: 0, profit: -hargaBeli, keterangan, turnoverDays: null });
+    await Store.addSale({ nota: nota || `NOTA-${Date.now()}`, tanggalMasuk: tanggal, tanggalKeluar: null, tipeModel: tipe, tipe, hargaBeli, hargaJual: 0, profit: 0, keterangan, turnoverDays: null });
     if (el('buy-form')) el('buy-form').reset();
     if (el('f-buy-tanggal')) el('f-buy-tanggal').value = new Date().toISOString().split('T')[0];
     if (el('f-buy-nota')) el('f-buy-nota').value = Store.getNextNota();
@@ -2305,7 +2397,7 @@ const App = {
     const nwTitle = document.getElementById('nw-chart-title');
     if (nwTitle) nwTitle.textContent = `📈 Net Worth Growth ${groupName} ${ext}`;
 
-    const filteredNw = applyCalendarFilter(Store._networth, 'tanggal', filter);
+    const filteredNw = applyCalendarFilter(Store.getDynamicNetworth(), 'tanggal', filter);
     if (Charts.renderNetWorth) Charts.renderNetWorth(filteredNw, groupMode);
 
     const tbody = el('monthly-tbody');

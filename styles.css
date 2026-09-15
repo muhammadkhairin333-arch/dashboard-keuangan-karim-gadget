@@ -211,7 +211,7 @@ body::before {
   justify-content: center;
   font-size: 18px;
   font-weight: 800;
-  color: white;
+  color: var(--text-primary);
   box-shadow: var(--shadow-blue);
 }
 
@@ -280,7 +280,7 @@ body::before {
 
 .nav-link-badge {
   background: var(--accent-gradient);
-  color: white;
+  color: #ffffff;
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
@@ -462,6 +462,8 @@ body::before {
   transition: all var(--transition-normal);
   animation: fadeInUp 0.6s ease backwards;
   box-shadow: var(--shadow-sm);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .chart-card:hover {
@@ -558,7 +560,7 @@ body::before {
 }
 
 .date-range-btn.active {
-  color: white;
+  color: #ffffff;
   background: var(--accent-gradient);
   border-color: transparent;
   box-shadow: var(--shadow-blue);
@@ -624,7 +626,7 @@ body::before {
 }
 
 .filter-select option {
-  background: white;
+  background: var(--bg-card);
   color: var(--text-primary);
 }
 
@@ -830,7 +832,7 @@ body::before {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border-subtle);
-  background: white;
+  background: var(--bg-card);
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
   font-size: 12px;
@@ -849,7 +851,7 @@ body::before {
 .page-btn.active {
   background: var(--accent-gradient);
   border-color: transparent;
-  color: white;
+  color: #ffffff;
   font-weight: 700;
   box-shadow: var(--shadow-blue);
 }
@@ -922,7 +924,7 @@ body::before {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-.form-select option { background: white; }
+.form-select option { background: var(--bg-card); }
 
 .form-textarea {
   resize: vertical;
@@ -940,7 +942,7 @@ body::before {
   top: 100%;
   left: 0;
   right: 0;
-  background: white;
+  background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   max-height: 180px;
@@ -992,7 +994,7 @@ body::before {
 
 .btn-primary {
   background: var(--accent-gradient);
-  color: white;
+  color: #ffffff;
   box-shadow: var(--shadow-blue);
 }
 
@@ -1002,7 +1004,7 @@ body::before {
 }
 
 .btn-secondary {
-  background: white;
+  background: var(--bg-card);
   border-color: var(--border-light);
   color: var(--text-secondary);
   box-shadow: var(--shadow-xs);
@@ -1016,7 +1018,7 @@ body::before {
 
 .btn-success {
   background: linear-gradient(135deg, #059669, #10b981);
-  color: white;
+  color: #ffffff;
   box-shadow: var(--shadow-green);
 }
 
@@ -1027,7 +1029,7 @@ body::before {
 
 .btn-danger {
   background: linear-gradient(135deg, #dc2626, #ef4444);
-  color: white;
+  color: #ffffff;
   box-shadow: var(--shadow-red);
 }
 
@@ -1253,7 +1255,7 @@ body::before {
 }
 
 .toast {
-  background: white;
+  background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   padding: var(--space-md) var(--space-lg);
@@ -1401,7 +1403,7 @@ body::before {
 }
 
 .modal-content {
-  background: white;
+  background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-xl);
   padding: var(--space-xl);
@@ -1454,7 +1456,7 @@ body::before {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-tertiary);
-  background: white;
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
   cursor: pointer;
@@ -1469,7 +1471,7 @@ body::before {
 }
 
 .month-tab.active {
-  color: white;
+  color: #ffffff;
   background: var(--accent-gradient);
   border-color: transparent;
   box-shadow: var(--shadow-blue);
@@ -1600,7 +1602,7 @@ body::before {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border-subtle);
-  background: white;
+  background: var(--bg-card);
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
   font-size: 12px;
@@ -1619,7 +1621,7 @@ body::before {
 .pg-btn.active {
   background: var(--accent-gradient);
   border-color: transparent;
-  color: white;
+  color: var(--text-primary);
   font-weight: 700;
 }
 
@@ -1688,7 +1690,7 @@ body::before {
 .autocomplete-dropdown {
   position: absolute;
   top: 100%; left: 0; right: 0;
-  background: white;
+  background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   max-height: 200px;
@@ -1720,7 +1722,7 @@ body::before {
   padding: 6px 14px;
   font-size: 12px;
   font-weight: 600;
-  background: white;
+  background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-full);
   cursor: pointer;
@@ -1745,7 +1747,7 @@ body::before {
 /* Nav badge (small inline pill) */
 .nav-badge {
   background: var(--accent-gradient);
-  color: white;
+  color: #ffffff;
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
@@ -1767,7 +1769,7 @@ body::before {
 /* kept for backward compatibility with any remaining references */
 .period-pills { display: flex; gap: 4px; background: rgba(241,245,249,.8); border-radius: var(--radius-full); padding: 4px; border: 1px solid var(--border-subtle); flex-wrap: wrap; }
 .ov-period-btn, .laporan-period-btn { padding: 6px 16px; font-size: 12px; font-weight: 600; border-radius: var(--radius-full); border: none; background: transparent; color: var(--text-tertiary); cursor: pointer; font-family: inherit; transition: all var(--transition-normal); white-space: nowrap; }
-.ov-period-btn.active, .laporan-period-btn.active { background: white; color: var(--accent-blue); font-weight: 700; box-shadow: 0 2px 8px rgba(37,99,235,.15), 0 1px 2px rgba(0,0,0,.06); }
+.ov-period-btn.active, .laporan-period-btn.active { background: var(--bg-card); color: var(--accent-blue); font-weight: 700; box-shadow: 0 2px 8px rgba(37,99,235,.15), 0 1px 2px rgba(0,0,0,.06); }
 
 /* ==================================================
    CALENDAR FILTER WIDGET — V3.1
@@ -1796,7 +1798,7 @@ body::before {
   font-weight: 600;
   border-radius: var(--radius-sm);
   border: 1.5px solid var(--border-light);
-  background: white;
+  background: var(--bg-card);
   color: var(--text-secondary);
   cursor: pointer;
   font-family: inherit;
@@ -1845,7 +1847,7 @@ body::before {
   font-weight: 500;
   border-radius: var(--radius-sm);
   border: 1.5px solid var(--border-light);
-  background: white;
+  background: var(--bg-card);
   color: var(--text-secondary);
   font-family: inherit;
   transition: border-color var(--transition-fast);
@@ -1905,7 +1907,7 @@ body::before {
   font-weight: 600;
   border-radius: var(--radius-md);
   border: 1.5px solid var(--border-light);
-  background: white;
+  background: var(--bg-card);
   color: var(--text-tertiary);
   cursor: pointer;
   font-family: inherit;
@@ -1924,7 +1926,7 @@ body::before {
 }
 .input-tab-btn.active {
   background: var(--accent-gradient);
-  color: white;
+  color: #ffffff;
   border-color: transparent;
   box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
   transform: translateY(-2px);
@@ -2008,7 +2010,7 @@ body::before {
 .modal-overlay.open { opacity: 1; }
 
 .modal-box {
-  background: white;
+  background: var(--bg-card);
   border-radius: var(--radius-xl);
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.2), 0 8px 24px rgba(15, 23, 42, 0.1);
   width: 100%;
@@ -2126,7 +2128,7 @@ body::before {
 
 /* Login Form */
 .login-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; z-index: 1000; background: var(--bg-primary, #f8fafc); }
-.login-card { width: 100%; max-width: 420px; background: #ffffff; backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border: 1px solid rgba(18,149,174,0.2); border-radius: 24px; padding: 48px 40px 40px; box-shadow: 0 4px 16px rgba(15,23,42,0.08), 0 2px 4px rgba(15,23,42,0.04); animation: fadeSlideUp 0.6s cubic-bezier(0.4,0,0.2,1); position: relative; overflow: hidden; }
+.login-card { width: 100%; max-width: 420px; background: var(--bg-card); backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border: 1px solid rgba(18,149,174,0.2); border-radius: 24px; padding: 48px 40px 40px; box-shadow: 0 4px 16px rgba(15,23,42,0.08), 0 2px 4px rgba(15,23,42,0.04); animation: fadeSlideUp 0.6s cubic-bezier(0.4,0,0.2,1); position: relative; overflow: hidden; }
 .login-card::before { content: ''; position: absolute; top: 0; left: 10%; right: 10%; height: 1px; background: linear-gradient(90deg, transparent, rgba(18,149,174,0.6), transparent); }
 .login-logo-wrap { display: flex; justify-content: center; margin-bottom: 28px; }
 .login-logo { height: 64px; width: auto; object-fit: contain; filter: drop-shadow(0 0 18px rgba(18,149,174,0.4)); }
@@ -2138,8 +2140,8 @@ body::before {
 .login-form .form-group { display: flex; flex-direction: column; gap: 8px; margin: 0; }
 .login-form label { font-size: 12.5px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; }
 .login-form input { width: 100%; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 12px; padding: 14px 16px; font-size: 15px; color: #0f172a; font-family: 'Inter', sans-serif; outline: none; transition: 0.2s; }
-.login-form input:focus { border-color: rgba(18,149,174,0.6); background: #ffffff; box-shadow: 0 0 0 3px rgba(18,149,174,0.15); }
-.login-btn { width: 100%; padding: 15px 20px; background: linear-gradient(135deg, #1295ae 0%, #0d7a8e 100%); color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 16px rgba(18,149,174,0.35); }
+.login-form input:focus { border-color: rgba(18,149,174,0.6); background: var(--bg-card); box-shadow: 0 0 0 3px rgba(18,149,174,0.15); }
+.login-btn { width: 100%; padding: 15px 20px; background: linear-gradient(135deg, #1295ae 0%, #0d7a8e 100%); color: #ffffff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 16px rgba(18,149,174,0.35); }
 .login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(18,149,174,0.5); }
 .login-btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
 
@@ -2147,7 +2149,7 @@ body::before {
 .brand-logo { height: 36px; max-width: 150px; width: auto; object-fit: contain; }
 .nav-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
 .nav-user-chip { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-light); border-radius: 9999px; }
-.nav-user-avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #1295ae, #0d7a8e); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; text-transform: uppercase; }
+.nav-user-avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #1295ae, #0d7a8e); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #ffffff; text-transform: uppercase; }
 .nav-user-name { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
 .nav-role-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px; }
 .nav-role-badge.admin { background: rgba(244,63,94,0.15); color: #dc2626; }
@@ -2160,6 +2162,8 @@ body::before {
 /* User Mode — hanya tampilkan halaman input, sembunyi nav lain */
 body.user-mode .nav-user-chip { display: none !important; }
 body.user-mode .navbar-menu { display: none !important; }
+/* Sembunyikan tulisan "Input Data Baru" untuk kasir karena itu satu-satunya halaman */
+body.user-mode #page-input .page-header { display: none !important; }
 
 /* Tombol Keluar di bottom nav: SELALU hidden di desktop */
 .nav-logout-mobile { display: none !important; }
@@ -2169,9 +2173,10 @@ body.user-mode .navbar-menu { display: none !important; }
   /* === LAYOUT === */
   #dashboard-container { width: 100%; overflow-x: hidden; }
   .login-card { width: 92%; max-width: 400px; margin: 0 auto; }
-  .main-content { padding: 12px 12px 90px; }
+  .main-content { padding: 28px 24px 90px; }
   .brand-sub { display: none !important; }
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .card { padding: 20px !important; }
 
   /* === NAVBAR: sembunyikan hamburger, desktop nav-menu === */
   .nav-toggle { display: none !important; }
@@ -2183,7 +2188,7 @@ body.user-mode .navbar-menu { display: none !important; }
     left: 0;
     right: 0;
     height: 60px;
-    background: #ffffff;
+    background: var(--bg-card);
     display: flex !important;
     flex-direction: row;
     justify-content: space-evenly;
@@ -2249,7 +2254,7 @@ body.user-mode .navbar-menu { display: none !important; }
   .form-group { margin-bottom: 12px; }
   .form-input, .form-select {
     font-size: 16px; /* mencegah zoom otomatis iOS */
-    padding: 12px 14px;
+    padding: 14px 16px;
   }
   .span2 { grid-column: 1 !important; } /* hapus full-width override yg merusak grid 1 col */
 
