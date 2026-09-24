@@ -381,7 +381,9 @@ const Store = {
           const days = Math.round((new Date(validKeluar + 'T00:00:00') - new Date(validMasuk + 'T00:00:00')) / 86400000);
           turnoverDays = days >= 0 ? days : null;
         }
-        return { ...s, id: s.id || Math.random().toString(36).substr(2, 8), notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
+        // ID stabil: jika sudah punya id komposit (mengandung '_'), pakai itu; jika tidak buat dari nota+tanggalMasuk
+        const stableId = (s.id && s.id !== s.nota) ? s.id : ((s.nota ? String(s.nota) : 'x') + '_' + (s.tanggalMasuk || 'x') + '_gs');
+        return { ...s, id: stableId, notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
       });
     }
 
@@ -439,11 +441,15 @@ const Store = {
             const days = Math.round((new Date(validKeluar + 'T00:00:00') - new Date(validMasuk + 'T00:00:00')) / 86400000);
             turnoverDays = days >= 0 ? days : null;
           }
-          return { ...s, id: s.nota || s.id || Math.random().toString(36).substr(2, 8), notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
+          // ID stabil per baris GS: nota + tanggalMasuk + '_gs' → unik meski nota sama selama tanggal berbeda
+          // Jika sudah ada id komposit tersimpan di GS (mengandung '_'), gunakan langsung
+          const gsId = (s.id && s.id !== s.nota) ? s.id : ((s.nota ? String(s.nota) : 'x') + '_' + (validMasuk || 'x') + '_gs');
+          return { ...s, id: gsId, notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
         });
         const pendingSales = this._getPendingSales();
         this._sales = [...gsSales];
-        pendingSales.forEach(p => { if (!this._sales.find(s => s.nota === p.nota)) this._sales.push(p); });
+        // Merge pending berdasarkan id unik, bukan nota (hindari duplikasi nota yang berbeda entri)
+        pendingSales.forEach(p => { if (!this._sales.find(s => s.id === p.id)) this._sales.push(p); });
         this._saveSalesLocal();
 
         this._networth = data.networth || [];
@@ -904,7 +910,8 @@ const Store = {
   },
 
   async addSale(sale) {
-    sale.id = sale.nota || Math.random().toString(36).substr(2, 8);
+    // ID unik per entri: gabungkan nota + timestamp agar tidak terjadi duplikasi
+    sale.id = (sale.nota ? String(sale.nota) : '') + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     sale.notaNum = isNaN(parseInt(sale.nota, 10)) ? 0 : parseInt(sale.nota, 10);
     this._sales.push(sale);
     this._saveSalesLocal();
@@ -920,7 +927,7 @@ const Store = {
       });
       const result = await res.json();
       if (result.success) {
-        this._setPendingSales(this._getPendingSales().filter(p => p.nota !== sale.nota));
+        this._setPendingSales(this._getPendingSales().filter(p => p.id !== sale.id));
         toast('✅ Unit tersimpan ke Google Sheets!', 'success');
       }
     } catch (e) { console.warn('[KG] Offline — sale tersimpan lokal:', e.message); }
@@ -962,13 +969,14 @@ const Store = {
     if (!sale) return false;
     this._sales = this._sales.filter(s => String(s.id) !== String(id));
     this._saveSalesLocal();
-    // Hapus dari pending jika ada
-    this._setPendingSales(this._getPendingSales().filter(p => p.nota !== sale.nota));
+    // Hapus dari pending hanya yang id-nya sama (bukan berdasarkan nota)
+    this._setPendingSales(this._getPendingSales().filter(p => String(p.id) !== String(id)));
     try {
       fetch(API_URL, {
         method: 'POST',
         redirect: 'follow',
-        body: JSON.stringify({ action: 'deleteSale', nota: sale.nota })
+        // Kirim id unik agar server bisa membedakan baris dengan nota sama
+        body: JSON.stringify({ action: 'deleteSale', nota: sale.nota, saleId: sale.id })
       });
     } catch (e) { console.warn('[KG] Gagal hapus sale dari GS:', e.message); }
     return true;
@@ -2344,7 +2352,11 @@ const App = {
     if (!isValidDate(tanggal)) { toast('Tanggal tidak valid!', 'error'); return; }
     if (!tipe) { toast('Isi tipe/model HP!', 'error'); return; }
     if (hargaBeli <= 0) { toast('Harga beli harus lebih dari 0!', 'error'); return; }
+    // Disable tombol submit selama proses untuk mencegah double-klik
+    const buyBtn = el('buy-form') ? el('buy-form').querySelector('button[type="submit"]') : null;
+    if (buyBtn) { buyBtn.disabled = true; buyBtn.textContent = 'Menyimpan...'; }
     await Store.addSale({ nota: nota || `NOTA-${Date.now()}`, tanggalMasuk: tanggal, tanggalKeluar: null, tipeModel: tipe, tipe, hargaBeli, hargaJual: 0, profit: 0, keterangan, turnoverDays: null });
+    if (buyBtn) { buyBtn.disabled = false; buyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Simpan Pembelian`; }
     if (el('buy-form')) el('buy-form').reset();
     if (el('f-buy-tanggal')) el('f-buy-tanggal').value = new Date().toISOString().split('T')[0];
     if (el('f-buy-nota')) el('f-buy-nota').value = Store.getNextNota();
@@ -2362,8 +2374,12 @@ const App = {
     if (hargaJual <= 0) { toast('Harga jual harus lebih dari 0!', 'error'); return; }
     const sale = Store.getSaleById(saleId);
     if (!sale) { toast('Unit tidak ditemukan!', 'error'); return; }
+    // Disable tombol submit selama proses untuk mencegah double-klik
+    const sellBtn = el('sell-form') ? el('sell-form').querySelector('button[type="submit"]') : null;
+    if (sellBtn) { sellBtn.disabled = true; sellBtn.textContent = 'Menyimpan...'; }
     await Store.updateSale(saleId, { tanggalKeluar: tanggal, hargaJual, keterangan: keterangan || sale.keterangan });
     toast(`✅ Penjualan "${sale.tipeModel || sale.tipe}" berhasil disimpan!`, 'success');
+    if (sellBtn) { sellBtn.disabled = false; sellBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Simpan Penjualan`; }
     if (el('sell-form')) el('sell-form').reset();
     if (el('f-sell-tanggal')) el('f-sell-tanggal').value = new Date().toISOString().split('T')[0];
     if (el('sell-preview')) el('sell-preview').classList.remove('show');
