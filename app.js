@@ -364,9 +364,17 @@ const Store = {
         const tanggal = t.tanggal || '';
         const validTanggal = isValidDate(tanggal) ? tanggal : null;
         if (!validTanggal && (t.deskripsi || t.uangMasuk || t.uangKeluar)) skipped++;
-        return { ...t, sheetIndex: i, id: t.id || Math.random().toString(36).substr(2, 8), tanggal: validTanggal, kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''), kategoriRaw: t.kategori || '' };
+        return { ...t, sheetIndex: i, id: t.id || Math.random().toString(36).substr(2, 8), tanggal: validTanggal, kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''), kategoriRaw: t.kategori || '', uangMasuk: parseFloat(t.uangMasuk) || 0, uangKeluar: parseFloat(t.uangKeluar) || 0, saldo: t.saldo != null && String(t.saldo).trim() !== '' ? parseFloat(t.saldo) : null };
       }).filter(t => t.tanggal !== null);
       this._invalidDates = skipped;
+    }
+
+    if (this._transactions.length) {
+      this._transactions.sort((a, b) => {
+        const c = (a.tanggal || '').localeCompare(b.tanggal || '');
+        return c !== 0 ? c : (a.sheetIndex || 0) - (b.sheetIndex || 0);
+      });
+      this._recalcAllSaldo();
     }
 
     // Penjualan
@@ -383,7 +391,7 @@ const Store = {
         }
         // ID stabil: jika sudah punya id komposit (mengandung '_'), pakai itu; jika tidak buat dari nota+tanggalMasuk
         const stableId = (s.id && s.id !== s.nota) ? s.id : ((s.nota ? String(s.nota) : 'x') + '_' + (s.tanggalMasuk || 'x') + '_gs');
-        return { ...s, id: stableId, notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
+        return { ...s, id: stableId, notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays, hargaBeli: parseFloat(s.hargaBeli) || 0, hargaJual: parseFloat(s.hargaJual) || 0, profit: parseFloat(s.profit) || 0 };
       });
     }
 
@@ -412,12 +420,12 @@ const Store = {
 
         // Proses transaksi
         const gsTx = (data.transactions || []).filter(t => {
-          return (t.uangMasuk > 0 || t.uangKeluar > 0 || (t.deskripsi && t.deskripsi.trim() !== '') || t.saldo > 0);
+          return (parseFloat(t.uangMasuk) > 0 || parseFloat(t.uangKeluar) > 0 || (t.deskripsi && t.deskripsi.trim() !== '') || parseFloat(t.saldo) > 0);
         }).map((t, i) => {
           const tanggal = t.tanggal || '';
           const validTanggal = isValidDate(tanggal) ? tanggal : null;
           if (!validTanggal) skipped++;
-          return { ...t, sheetIndex: t.sheetIndex !== undefined ? t.sheetIndex : i, id: t.id || Math.random().toString(36).substr(2, 8), tanggal: validTanggal, kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''), kategoriRaw: t.kategori || '' };
+          return { ...t, sheetIndex: t.sheetIndex !== undefined ? t.sheetIndex : i, id: t.id || Math.random().toString(36).substr(2, 8), tanggal: validTanggal, kategori: mapCategory(t.kategoriLama || t.kategori || '', t.deskripsi || ''), kategoriRaw: t.kategori || '', uangMasuk: parseFloat(t.uangMasuk) || 0, uangKeluar: parseFloat(t.uangKeluar) || 0, saldo: t.saldo != null && String(t.saldo).trim() !== '' ? parseFloat(t.saldo) : null };
         }).filter(t => t.tanggal !== null);
         this._invalidDates = skipped;
 
@@ -444,7 +452,7 @@ const Store = {
           // ID stabil per baris GS: nota + tanggalMasuk + '_gs' → unik meski nota sama selama tanggal berbeda
           // Jika sudah ada id komposit tersimpan di GS (mengandung '_'), gunakan langsung
           const gsId = (s.id && s.id !== s.nota) ? s.id : ((s.nota ? String(s.nota) : 'x') + '_' + (validMasuk || 'x') + '_gs');
-          return { ...s, id: gsId, notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays };
+          return { ...s, id: gsId, notaNum: isNaN(parseInt(s.nota, 10)) ? 0 : parseInt(s.nota, 10), tipe: s.tipeModel || s.tipe || '', tipeModel: s.tipeModel || s.tipe || '', tanggalMasuk: validMasuk, tanggalKeluar: validKeluar, turnoverDays, hargaBeli: parseFloat(s.hargaBeli) || 0, hargaJual: parseFloat(s.hargaJual) || 0, profit: parseFloat(s.profit) || 0 };
         });
         const pendingSales = this._getPendingSales();
         this._sales = [...gsSales];
@@ -547,6 +555,8 @@ const Store = {
   },
 
   async addTx(tx) {
+    tx.uangMasuk = parseFloat(tx.uangMasuk) || 0;
+    tx.uangKeluar = parseFloat(tx.uangKeluar) || 0;
     tx.id = Math.random().toString(36).substr(2, 8);
     tx.sheetIndex = Date.now();
     this._transactions.push(tx);
@@ -578,6 +588,8 @@ const Store = {
   async updateTx(id, updates) {
     const idx = this._transactions.findIndex(t => String(t.id) === String(id));
     if (idx === -1) return false;
+    if ('uangMasuk' in updates) updates.uangMasuk = parseFloat(updates.uangMasuk) || 0;
+    if ('uangKeluar' in updates) updates.uangKeluar = parseFloat(updates.uangKeluar) || 0;
     const merged = { ...this._transactions[idx], ...updates };
     this._transactions[idx] = merged;
     this._transactions.sort((a, b) => (a.tanggal || '').localeCompare(b.tanggal || ''));
@@ -633,7 +645,7 @@ const Store = {
   getLatestSaldo() {
     if (!this._transactions.length) return 0;
     const last = this._transactions[this._transactions.length - 1];
-    return last.saldo != null ? parseFloat(last.saldo) : (last.calcSaldo || 0);
+    return last.calcSaldo || 0;
   },
 
   getDescriptions() {
@@ -676,9 +688,9 @@ const Store = {
       }
       
       if (!groups[key]) groups[key] = { sortKey: key, bulan: label, masuk: 0, keluar: 0, saldo: 0, count: 0 };
-      groups[key].masuk += t.uangMasuk || 0;
-      groups[key].keluar += t.uangKeluar || 0;
-      if (t.saldo != null) groups[key].saldo = parseFloat(t.saldo);
+      groups[key].masuk += parseFloat(t.uangMasuk) || 0;
+      groups[key].keluar += parseFloat(t.uangKeluar) || 0;
+      groups[key].saldo = t.calcSaldo || 0;
       groups[key].count++;
     });
     return Object.values(groups)
@@ -701,9 +713,9 @@ const Store = {
       if (!t.tanggal || !isValidDate(t.tanggal)) return;
       const key = groupByDay ? t.tanggal : t.tanggal.substr(0, 7);
       if (!map[key]) map[key] = { label: groupByDay ? fmtDateNum(key) : fmtYearMonth(key), masuk: 0, keluar: 0, count: 0, saldo: 0 };
-      map[key].masuk += t.uangMasuk || 0;
-      map[key].keluar += t.uangKeluar || 0;
-      if (t.saldo != null) map[key].saldo = parseFloat(t.saldo);
+      map[key].masuk += parseFloat(t.uangMasuk) || 0;
+      map[key].keluar += parseFloat(t.uangKeluar) || 0;
+      map[key].saldo = t.calcSaldo || 0;
       map[key].count++;
     });
     return Object.keys(map).sort().map(k => ({
@@ -722,9 +734,9 @@ const Store = {
       if (!t.tanggal || !isValidDate(t.tanggal)) return;
       const key = t.tanggal.substr(0, 4);
       if (!years[key]) years[key] = { tahun: key, masuk: 0, keluar: 0, saldo: 0, count: 0 };
-      years[key].masuk += t.uangMasuk || 0;
-      years[key].keluar += t.uangKeluar || 0;
-      if (t.saldo != null) years[key].saldo = parseFloat(t.saldo);
+      years[key].masuk += parseFloat(t.uangMasuk) || 0;
+      years[key].keluar += parseFloat(t.uangKeluar) || 0;
+      years[key].saldo = t.calcSaldo || 0;
       years[key].count++;
     });
     return Object.values(years).sort((a, b) => a.tahun.localeCompare(b.tahun)).map(y => ({ ...y, profit: y.masuk - y.keluar }));
@@ -734,9 +746,9 @@ const Store = {
     const filtered = applyCalendarFilter(this._transactions, 'tanggal', filter || { mode: 'semua' });
     let masuk = 0, keluar = 0, countMasuk = 0, countKeluar = 0, saldo = 0;
     filtered.forEach(t => {
-      if ((t.uangMasuk || 0) > 0) { masuk += t.uangMasuk; countMasuk++; }
-      if ((t.uangKeluar || 0) > 0) { keluar += t.uangKeluar; countKeluar++; }
-      if (t.saldo != null) saldo = parseFloat(t.saldo);
+      if (parseFloat(t.uangMasuk) > 0) { masuk += parseFloat(t.uangMasuk); countMasuk++; }
+      if (parseFloat(t.uangKeluar) > 0) { keluar += parseFloat(t.uangKeluar); countKeluar++; }
+      saldo = t.calcSaldo || 0;
     });
     return { masuk, keluar, profit: masuk - keluar, count: filtered.length, countMasuk, countKeluar, saldo };
   },
@@ -746,9 +758,9 @@ const Store = {
     const cats = {};
     const validExpense = ['Inventory', 'Biaya Operasional', 'Biaya Bank', 'Ekuitas & aset'];
     filtered.forEach(t => {
-      if ((t.uangKeluar || 0) > 0) {
+      if (parseFloat(t.uangKeluar) > 0) {
         const k = validExpense.includes(t.kategori) ? t.kategori : 'Lainnya';
-        cats[k] = (cats[k] || 0) + t.uangKeluar;
+        cats[k] = (cats[k] || 0) + (parseFloat(t.uangKeluar) || 0);
       }
     });
     Object.keys(cats).forEach(k => { if (cats[k] <= 0) delete cats[k]; });
@@ -769,12 +781,15 @@ const Store = {
     const nwData = [];
     let txIdx = 0;
     let currentKas = 0;
-    const sortedTxs = [...this._transactions].sort((a,b) => (a.tanggal||'').localeCompare(b.tanggal||''));
+    const sortedTxs = [...this._transactions].sort((a, b) => {
+      const c = (a.tanggal || '').localeCompare(b.tanggal || '');
+      return c !== 0 ? c : (a.sheetIndex || 0) - (b.sheetIndex || 0);
+    });
     
     sortedDates.forEach(date => {
       while(txIdx < sortedTxs.length && sortedTxs[txIdx].tanggal <= date) {
          const t = sortedTxs[txIdx];
-         currentKas = (t.saldo != null && t.saldo !== '') ? parseFloat(t.saldo) : (t.calcSaldo || 0);
+         currentKas = t.calcSaldo || 0;
          txIdx++;
       }
       
@@ -797,9 +812,9 @@ const Store = {
     const cats = {};
     const validIncome = ['Penjualan Utama', 'Pendapatan lainnya', 'Ekuitas & aset'];
     filtered.forEach(t => {
-      if ((t.uangMasuk || 0) > 0) {
+      if (parseFloat(t.uangMasuk) > 0) {
         const k = validIncome.includes(t.kategori) ? t.kategori : 'Lainnya';
-        cats[k] = (cats[k] || 0) + t.uangMasuk;
+        cats[k] = (cats[k] || 0) + (parseFloat(t.uangMasuk) || 0);
       }
     });
     Object.keys(cats).forEach(k => { if (cats[k] <= 0) delete cats[k]; });
@@ -911,6 +926,8 @@ const Store = {
 
   async addSale(sale) {
     // ID unik per entri: gabungkan nota + timestamp agar tidak terjadi duplikasi
+    sale.hargaBeli = parseFloat(sale.hargaBeli) || 0;
+    sale.hargaJual = parseFloat(sale.hargaJual) || 0;
     sale.id = (sale.nota ? String(sale.nota) : '') + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     sale.notaNum = isNaN(parseInt(sale.nota, 10)) ? 0 : parseInt(sale.nota, 10);
     this._sales.push(sale);
@@ -936,6 +953,8 @@ const Store = {
   async updateSale(id, updates) {
     const idx = this._sales.findIndex(s => String(s.id) === String(id));
     if (idx === -1) return false;
+    if ('hargaBeli' in updates) updates.hargaBeli = parseFloat(updates.hargaBeli) || 0;
+    if ('hargaJual' in updates) updates.hargaJual = parseFloat(updates.hargaJual) || 0;
     const merged = { ...this._sales[idx], ...updates };
     if (merged.tanggalMasuk && merged.tanggalKeluar && isValidDate(merged.tanggalMasuk) && isValidDate(merged.tanggalKeluar)) {
       const days = Math.round((new Date(merged.tanggalKeluar + 'T00:00:00') - new Date(merged.tanggalMasuk + 'T00:00:00')) / 86400000);
@@ -1875,7 +1894,7 @@ const App = {
           <td>${catBadge(t.kategori)}</td>
           <td class="cell-in">${t.uangMasuk ? fmt(t.uangMasuk) : '–'}</td>
           <td class="cell-out">${t.uangKeluar ? fmt(t.uangKeluar) : '–'}</td>
-          <td class="cell-saldo">${fmt(t.saldo)}</td>
+          <td class="cell-saldo">${fmt(t.calcSaldo)}</td>
         </tr>`).join('')}
       </tbody></table>`;
     }
@@ -1938,7 +1957,7 @@ const App = {
     const data = Store.getTx({ filter: this.tx.filter, kat: this.tx.kat, search: this.tx.search, sortBy: this.tx.sortBy, sortDir: this.tx.sortDir });
 
     let tMasuk = 0, tKeluar = 0;
-    data.forEach(t => { tMasuk += t.uangMasuk || 0; tKeluar += t.uangKeluar || 0; });
+    data.forEach(t => { tMasuk += parseFloat(t.uangMasuk) || 0; tKeluar += parseFloat(t.uangKeluar) || 0; });
     setText('qs-count', data.length);
     setText('qs-masuk', fmt(tMasuk));
     setText('qs-keluar', fmt(tKeluar));
@@ -1959,7 +1978,7 @@ const App = {
         <td>${catBadge(t.kategori)}</td>
         <td class="cell-in">${t.uangMasuk ? fmt(t.uangMasuk) : '–'}</td>
         <td class="cell-out">${t.uangKeluar ? fmt(t.uangKeluar) : '–'}</td>
-        <td class="cell-saldo">${fmt(t.saldo)}</td>
+        <td class="cell-saldo">${fmt(t.calcSaldo)}</td>
         <td class="cell-action">
           <button class="btn-icon-edit" title="Edit" onclick="App.editTx('${t.id}')">✏️</button>
           <button class="btn-icon-del" title="Hapus" onclick="App.confirmDeleteTx('${t.id}')">🗑️</button>
@@ -1981,7 +2000,7 @@ const App = {
     if (el('etx-qty')) el('etx-qty').value = t.quantity || t.jumlah || '';
     el('etx-masuk').value = t.uangMasuk || '';
     el('etx-keluar').value = t.uangKeluar || 0;
-    el('etx-saldo').value = t.saldo || 0;
+    el('etx-saldo').value = t.calcSaldo || 0;
     openModal('modal-edit-tx');
   },
 
@@ -2292,7 +2311,7 @@ const App = {
     if (q.length < 2) { ac.style.display = 'none'; return; }
     const matches = Store.getDescriptions().filter(d => d.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
     if (!matches.length) { ac.style.display = 'none'; return; }
-    ac.innerHTML = matches.map(m => `<div class="autocomplete-item" onclick="el('f-desc').value='${m.replace(/'/g, "\\'")}'; el('f-desc-ac').style.display='none'; App._updatePreview();">${m}</div>`).join('');
+    ac.innerHTML = matches.map(m => `<div class="autocomplete-item" onclick="el('f-desc').value='${m.replace(/'/g, "\'")}'; el('f-desc-ac').style.display='none'; App._updatePreview();">${m}</div>`).join('');
     ac.style.display = 'block';
   },
 
@@ -2447,7 +2466,7 @@ const App = {
     const data = Store.getTx({ filter: this.tx.filter, kat: this.tx.kat, search: this.tx.search });
     if (!data.length) { toast('Tidak ada data untuk diexport.', 'error'); return; }
     const rows = [['Tanggal', 'Deskripsi', 'Kategori', 'Uang Masuk', 'Uang Keluar', 'Saldo', 'Qty'],
-    ...data.map(t => [t.tanggal, t.deskripsi, t.kategori, t.uangMasuk || 0, t.uangKeluar || 0, t.saldo || 0, t.quantity || ''])];
+    ...data.map(t => [t.tanggal, t.deskripsi, t.kategori, t.uangMasuk || 0, t.uangKeluar || 0, t.calcSaldo || 0, t.quantity || ''])];
     this._downloadXLSX(rows, 'BukuBesar_KarimGadget');
   },
 
