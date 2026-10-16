@@ -1594,11 +1594,20 @@ body::before {
 .card-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
 .card-footer { display: flex; align-items: center; justify-content: space-between; padding: var(--space-md) var(--space-lg); border-top: 1px solid var(--border-subtle); background: rgba(248,250,252,0.5); }
 
-/* Pagination (legacy pg-btn) */
+/* Pagination */
+.pagination,
+.page-btns {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+}
+
 .pg-btn {
   width: 32px;
   height: 32px;
-  display: flex;
+  display: inline-flex !important;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border-subtle);
@@ -1610,6 +1619,7 @@ body::before {
   cursor: pointer;
   transition: all var(--transition-fast);
   font-family: inherit;
+  flex-shrink: 0;
 }
 
 .pg-btn:hover:not([disabled]) {
@@ -1971,6 +1981,15 @@ body::before {
 .btn-icon-del:hover {
   background: rgba(220, 38, 38, 0.1);
   transform: scale(1.1);
+}
+
+/* ---- Owner Mode: View-only (Hide all Edit/Delete action columns & buttons) ---- */
+body.owner-mode .col-action,
+body.owner-mode .cell-action,
+body.owner-mode .btn-icon-edit,
+body.owner-mode .btn-icon-del,
+body.owner-mode .modal-overlay[id^="modal-edit-"] {
+  display: none !important;
 }
 
 /* ---- Status Badge for Sales ---- */
