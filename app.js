@@ -122,7 +122,7 @@ const Auth = {
     const r = this.user.role;
     if (r === 'ADMIN') return true;
     if (r === 'USER') return page === 'input';
-    if (r === 'OWNER') return ['overview', 'transaksi', 'penjualan', 'laporan'].includes(page);
+    if (r === 'OWNER') return ['overview', 'transaksi', 'penjualan', 'laporan', 'customer'].includes(page);
     return false;
   }
 };
@@ -134,6 +134,25 @@ const BULAN_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Se
 const isValidDate = (s) => {
   if (!s || typeof s !== 'string') return false;
   return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T00:00:00').getTime());
+};
+
+// Convert string like '28/08/2025' or '2025-08-28' to ISO 'YYYY-MM-DD'
+const parseToIsoDate = (s) => {
+  if (!s || typeof s !== 'string') return '';
+  const str = s.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.substring(0, 10);
+  const m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return '';
+};
+
+// Standardize gender across all representations (Laki-laki, Pria, Perempuan, Wanita, etc.)
+const normalizeGender = (g) => {
+  if (!g) return '';
+  const s = String(g).trim().toLowerCase();
+  if (s.startsWith('laki') || s === 'pria' || s === 'l' || s === 'male' || s === 'm' || s === 'cowok') return 'Pria';
+  if (s.startsWith('perempuan') || s === 'wanita' || s === 'p' || s === 'female' || s === 'f' || s === 'cewek') return 'Wanita';
+  return String(g).trim();
 };
 
 // Format YYYY-MM to "Agustus 2026"
@@ -308,6 +327,7 @@ function catBadge(kat) {
 const Store = {
   _transactions: [],
   _sales: [],
+  _customers: [],
   _networth: [],
   _invalidDates: 0,
 
@@ -403,6 +423,16 @@ const Store = {
     } else {
       this._networth = [];
     }
+
+    // Customers
+    try {
+      const custCache = localStorage.getItem('kg_customer_cache');
+      if (custCache) {
+        this._customers = JSON.parse(custCache);
+      } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.customers) {
+        this._customers = INITIAL_DATA.customers;
+      }
+    } catch { this._customers = []; }
   },
 
   // Sync dari Google Sheets di BACKGROUND — tidak blokir UI
@@ -462,6 +492,15 @@ const Store = {
 
         this._networth = data.networth || [];
         this._saveNetworthLocal();
+
+        // Proses data customer
+        if (data.customers) {
+          this._customers = data.customers.map(c => ({
+            ...c,
+            tanggal: parseToIsoDate(c.tanggal) || c.tanggal || ''
+          })).filter(c => c && (c.nama || c.produk));
+          try { localStorage.setItem('kg_customer_cache', JSON.stringify(this._customers)); } catch (e) {}
+        }
         this._stampCache();
 
         // Update badge: berhasil
@@ -1622,6 +1661,97 @@ const Charts = {
       options: { ...d, scales: this._scales() }
     });
   },
+
+  renderCustomerGender({ pria, wanita }) {
+    this.destroy('cust-gender');
+    const ctx = el('chart-cust-gender'); if (!ctx) return;
+    const total = pria + wanita;
+    if (!total) return;
+    this._c['cust-gender'] = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Pria', 'Wanita'],
+        datasets: [{ data: [pria, wanita], backgroundColor: ['#1295ae', '#f59e0b'], borderWidth: 0, hoverOffset: 8 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '70%',
+        onClick: (evt, elements) => {
+          if (elements && elements.length > 0) {
+            const index = elements[0].index;
+            const chosen = index === 0 ? 'Pria' : 'Wanita';
+            if (typeof App !== 'undefined' && App.filterCustomerGender) {
+              App.filterCustomerGender(chosen);
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { font: { family: 'Inter', size: 12 }, padding: 14, usePointStyle: true, pointStyle: 'circle' },
+            onClick: (e, legendItem) => {
+              const chosen = legendItem.text === 'Pria' ? 'Pria' : 'Wanita';
+              if (typeof App !== 'undefined' && App.filterCustomerGender) {
+                App.filterCustomerGender(chosen);
+              }
+            }
+          },
+          tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw} (${Math.round(c.raw / total * 100)}%) • Klik untuk filter` } }
+        }
+      }
+    });
+  },
+
+  renderCustomerDomisili(topDomisili) {
+    this.destroy('cust-domisili');
+    const ctx = el('chart-cust-domisili'); if (!ctx || !topDomisili.length) return;
+    const COLORS = ['#1295ae','#0d7a8e','#059669','#f59e0b','#8b5cf6','#ef4444','#3b82f6','#f97316','#14b8a6','#a855f7'];
+    this._c['cust-domisili'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: topDomisili.map(d => d[0]),
+        datasets: [{
+          label: 'Jumlah Customer',
+          data: topDomisili.map(d => d[1]),
+          backgroundColor: topDomisili.map((_, i) => COLORS[i % COLORS.length]),
+          borderRadius: 6, borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.raw} customer` } } },
+        scales: {
+          x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 }, precision: 0 }, border: { display: false } },
+          y: { grid: { display: false }, ticks: { color: '#334155', font: { family: 'Inter', size: 12, weight: '500' } } }
+        }
+      }
+    });
+  },
+
+  renderCustomerSource(srcEntries) {
+    this.destroy('cust-source');
+    const ctx = el('chart-cust-source'); if (!ctx || !srcEntries.length) return;
+    const COLORS = ['#1295ae','#f59e0b','#059669','#ef4444','#8b5cf6','#f97316','#3b82f6','#14b8a6','#a855f7','#0d7a8e'];
+    this._c['cust-source'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: srcEntries.map(s => s[0]),
+        datasets: [{
+          label: 'Customer',
+          data: srcEntries.map(s => s[1]),
+          backgroundColor: srcEntries.map((_, i) => COLORS[i % COLORS.length]),
+          borderRadius: 6, borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.raw} customer` } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#334155', font: { family: 'Inter', size: 11 } } },
+          y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 }, precision: 0 }, border: { display: false } }
+        }
+      }
+    });
+  },
 };
 
 // ============ PAGINATION ============
@@ -1667,6 +1797,7 @@ const App = {
   sales: { filter: { mode: 'semua' }, search: '', sortBy: 'notaNum', sortDir: 'desc', page: 1 },
   overview: { filter: { mode: 'bulan', year: String(new Date().getFullYear()), month: new Date().getMonth() + 1 } },
   laporan: { filter: { mode: 'semua' } },
+  customer: { search: '', filterGender: '', filterSource: '', page: 1, limit: 15 },
   inputTab: 'kas',
   _rendered: false,
   _activePage: 'overview',
@@ -1678,10 +1809,12 @@ const App = {
       transaksi: () => this._renderTx(),
       penjualan: () => this._renderSales(),
       input: () => this._renderInput(),
-      laporan: () => this._renderLaporan()
+      laporan: () => this._renderLaporan(),
+      customer: () => this._renderCustomer()
     };
     (renderers[this._activePage] || (() => {}))();
     setText('badge-tx', Store._transactions.length);
+    setText('badge-cust', Store._customers.length);
   },
 
   async init() {
@@ -1808,7 +1941,8 @@ const App = {
       transaksi: () => this._renderTx(),
       penjualan: () => this._renderSales(),
       input: () => this._renderInput(),
-      laporan: () => this._renderLaporan()
+      laporan: () => this._renderLaporan(),
+      customer: () => this._renderCustomer()
     };
     (r[page] || (() => { }))();
   },
@@ -2505,9 +2639,178 @@ const App = {
     toast('File Excel berhasil diunduh!', 'success');
   },
 
+
+  filterCustomerGender(gender) {
+    this.customer.filterGender = gender || '';
+    this.customer.page = 1;
+    const select = el('cust-filter-gender');
+    if (select) select.value = gender || '';
+    this._renderCustomer();
+  },
+
+  // ---- Customer / Demografi ----
+  _renderCustomer() {
+    const customers = Store._customers || [];
+    const search = (this.customer.search || '').toLowerCase().trim();
+    const filterGender = this.customer.filterGender || '';
+    const filterSource = this.customer.filterSource || '';
+
+    let filtered = customers;
+    if (search) {
+      filtered = filtered.filter(c =>
+        (c.nama || '').toLowerCase().includes(search) ||
+        (c.noHp || '').toLowerCase().includes(search) ||
+        (c.domisili || '').toLowerCase().includes(search) ||
+        (c.produk || '').toLowerCase().includes(search) ||
+        (c.sumberInfo || '').toLowerCase().includes(search)
+      );
+    }
+
+    if (filterGender) {
+      filtered = filtered.filter(c => normalizeGender(c.gender) === normalizeGender(filterGender));
+    }
+
+    if (filterSource) {
+      if (filterSource === '__empty__') {
+        filtered = filtered.filter(c => !(c.sumberInfo || '').trim());
+      } else {
+        filtered = filtered.filter(c => (c.sumberInfo || '').trim() === filterSource);
+      }
+    }
+
+    // ---- Demografi Keseluruhan (Stabil, tidak berkurang saat tabel difilter) ----
+    const allTotal = customers.length;
+    const allPria = customers.filter(c => normalizeGender(c.gender) === 'Pria').length;
+    const allWanita = customers.filter(c => normalizeGender(c.gender) === 'Wanita').length;
+    const allPctPria = allTotal ? Math.round(allPria / allTotal * 100) : 0;
+    const allPctWanita = allTotal ? Math.round(allWanita / allTotal * 100) : 0;
+
+    // Top domisili
+    const domCount = {};
+    filtered.forEach(c => {
+      let d = (c.domisili || '').trim();
+      if (d) {
+        d = d.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      } else {
+        d = 'Tidak Diketahui';
+      }
+      domCount[d] = (domCount[d] || 0) + 1;
+    });
+    const topDomisili = Object.entries(domCount).sort((a, b) => b[1] - a[1]);
+    const topCity = topDomisili.length && topDomisili[0][0] !== 'Tidak Diketahui'
+      ? `${topDomisili[0][0]} (${topDomisili[0][1]})`
+      : (topDomisili.length ? topDomisili[0][0] : '-');
+
+    // Sumber info count (chart)
+    const srcCount = {};
+    filtered.forEach(c => {
+      const s = (c.sumberInfo || '').trim() || 'Tidak Ada Info';
+      srcCount[s] = (srcCount[s] || 0) + 1;
+    });
+
+    // Populate dropdown Sumber Info (selalu ambil dari keseluruhan customers agar opsi tidak hilang)
+    const allSources = [...new Set(customers.map(c => (c.sumberInfo || '').trim()).filter(Boolean))].sort();
+    const srcSelect = el('cust-filter-source');
+    if (srcSelect) {
+      const curVal = this.customer.filterSource || '';
+      let optHtml = `<option value="">Semua Sumber</option>`;
+      allSources.forEach(s => {
+        optHtml += `<option value="${s}" ${s === curVal ? 'selected' : ''}>${s}</option>`;
+      });
+      const hasEmpty = customers.some(c => !(c.sumberInfo || '').trim());
+      if (hasEmpty) {
+        optHtml += `<option value="__empty__" ${curVal === '__empty__' ? 'selected' : ''}>Tanpa Sumber Info</option>`;
+      }
+      srcSelect.innerHTML = optHtml;
+    }
+
+    // Set KPI Values
+    setText('cust-total', filtered.length + (filtered.length !== allTotal ? ` (dari ${allTotal})` : ''));
+    setText('cust-pria', `${allPctPria}% (${allPria})`);
+    setText('cust-wanita', `${allPctWanita}% (${allWanita})`);
+    setText('cust-top-kota', topCity);
+
+    // Active visual highlight pada KPI card yang dipilih
+    const cardTotal = el('card-cust-total');
+    const cardPria = el('card-cust-pria');
+    const cardWanita = el('card-cust-wanita');
+    if (cardTotal) cardTotal.style.outline = !filterGender ? '2px solid var(--accent-blue)' : 'none';
+    if (cardPria) cardPria.style.outline = filterGender === 'Pria' ? '3px solid #10b981' : 'none';
+    if (cardWanita) cardWanita.style.outline = filterGender === 'Wanita' ? '3px solid #f59e0b' : 'none';
+
+    setText('cust-total-sub', !filterGender ? '✓ Menampilkan Semua' : 'Klik: Reset filter');
+    setText('cust-pria-sub', filterGender === 'Pria' ? '✓ Filter Aktif' : 'Klik untuk filter');
+    setText('cust-wanita-sub', filterGender === 'Wanita' ? '✓ Filter Aktif' : 'Klik untuk filter');
+
+    // Table Header Badge
+    let filterLabel = '';
+    if (filterGender) filterLabel += ` • Gender: ${filterGender}`;
+    if (filterSource) filterLabel += ` • Sumber: ${filterSource === '__empty__' ? 'Tanpa Info' : filterSource}`;
+    setText('cust-count-badge', `${filtered.length} customer${filterLabel}`);
+
+    // ---- Chart Gender (Doughnut) — selalu tampilkan proporsi utuh agar grafik tetap hidup ----
+    Charts.renderCustomerGender({ pria: allPria, wanita: allWanita });
+
+    // ---- Chart Domisili (Bar horizontal) ----
+    Charts.renderCustomerDomisili(topDomisili.slice(0, 10));
+
+    // ---- Chart Sumber Info (Bar) ----
+    Charts.renderCustomerSource(Object.entries(srcCount).sort((a, b) => b[1] - a[1]));
+
+    // ---- Table with Pagination ----
+    const tbody = el('cust-tbody');
+    if (!tbody) return;
+
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="padding:40px">Tidak ada data customer untuk filter ini.</td></tr>`;
+      setText('cust-pinfo', '');
+      const pagesEl = el('cust-pages');
+      if (pagesEl) pagesEl.innerHTML = '';
+      return;
+    }
+
+    const page = Math.max(1, this.customer.page || 1);
+    const limit = this.customer.limit || 15;
+    const totalPages = Math.ceil(filtered.length / limit);
+    const currentPage = Math.min(page, totalPages);
+    this.customer.page = currentPage;
+
+    const startIdx = (currentPage - 1) * limit;
+    const slice = filtered.slice(startIdx, startIdx + limit);
+
+    tbody.innerHTML = slice.map((c, i) => {
+      const rowIdx = startIdx + i + 1;
+      const normG = normalizeGender(c.gender);
+      const genderBadge = normG === 'Pria' ? 'badge-lainnya' : (normG === 'Wanita' ? 'badge-ekuitas' : 'badge-slate');
+      const hpClean = (c.noHp || '').replace(/^0|[\s\-]/g, '');
+      const hpDisplay = c.noHp
+        ? `<a href="https://wa.me/62${hpClean}" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-weight:500">📱 ${c.noHp}</a>`
+        : '<span style="color:var(--text-muted)">-</span>';
+      const displayGender = normG || c.gender || '-';
+      const srcDisplay = c.sumberInfo
+        ? `<span class="badge badge-slate">${c.sumberInfo}</span>`
+        : '<span style="color:var(--text-muted)">-</span>';
+
+      return `
+      <tr>
+        <td class="cell-mono" style="color:var(--text-muted)">${rowIdx}</td>
+        <td style="font-weight:600">${c.nama || '-'}</td>
+        <td>${hpDisplay}</td>
+        <td class="cell-mono">${c.tanggal ? fmtDate(c.tanggal) : '-'}</td>
+        <td style="font-weight:500">${c.produk || '-'}</td>
+        <td><span class="badge ${genderBadge}">${displayGender}</span></td>
+        <td>${c.domisili || '-'}</td>
+        <td>${srcDisplay}</td>
+      </tr>`;
+    }).join('');
+
+    setText('cust-pinfo', `Hal ${currentPage} / ${totalPages} • Total ${filtered.length} customer`);
+    makePagination('cust-pages', currentPage, totalPages, `(pg) => { App.customer.page = pg; App._renderCustomer(); }`);
+  },
+
   resetAllData() {
     if (!confirm('⚠️ HAPUS SEMUA DATA lokal dan reload dari Google Sheets?\nAksi ini TIDAK BISA dibatalkan!')) return;
-    ['kg_tx_cache', 'kg_pending_tx', 'kg_sales_cache', 'kg_pending_sales'].forEach(k => localStorage.removeItem(k));
+    ['kg_tx_cache', 'kg_pending_tx', 'kg_sales_cache', 'kg_pending_sales', 'kg_nw_cache', 'kg_customer_cache'].forEach(k => localStorage.removeItem(k));
     location.reload();
   },
 };
