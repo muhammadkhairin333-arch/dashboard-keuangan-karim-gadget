@@ -124,6 +124,10 @@ const Auth = {
     if (r === 'USER') return page === 'input';
     if (r === 'OWNER') return ['overview', 'transaksi', 'penjualan', 'laporan', 'customer'].includes(page);
     return false;
+  },
+
+  canManage() {
+    return !!(this.user && this.user.role === 'ADMIN');
   }
 };
 
@@ -428,9 +432,17 @@ const Store = {
     try {
       const custCache = localStorage.getItem('kg_customer_cache');
       if (custCache) {
-        this._customers = JSON.parse(custCache);
+        this._customers = JSON.parse(custCache).map((c, i) => ({
+          id: c.id ? String(c.id) : String(i + 1),
+          rowIndex: c.rowIndex ? Number(c.rowIndex) : (i + 2),
+          ...c
+        }));
       } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.customers) {
-        this._customers = INITIAL_DATA.customers;
+        this._customers = INITIAL_DATA.customers.map((c, i) => ({
+          id: c.id ? String(c.id) : String(i + 1),
+          rowIndex: c.rowIndex ? Number(c.rowIndex) : (i + 2),
+          ...c
+        }));
       }
     } catch { this._customers = []; }
   },
@@ -495,7 +507,9 @@ const Store = {
 
         // Proses data customer
         if (data.customers) {
-          this._customers = data.customers.map(c => ({
+          this._customers = data.customers.map((c, i) => ({
+            id: c.id ? String(c.id) : String(i + 1),
+            rowIndex: c.rowIndex ? Number(c.rowIndex) : (i + 2),
             ...c,
             tanggal: parseToIsoDate(c.tanggal) || c.tanggal || ''
           })).filter(c => c && (c.nama || c.produk));
@@ -1042,6 +1056,79 @@ const Store = {
 
   getSaleById(id) { return this._sales.find(s => String(s.id) === String(id)); },
   getTxById(id) { return this._transactions.find(t => String(t.id) === String(id)); },
+  getCustomerById(id) {
+    return this._customers.find(c => String(c.id) === String(id) || String(c.rowIndex) === String(id));
+  },
+
+  async updateCustomer(id, updates) {
+    const idx = this._customers.findIndex(c => String(c.id) === String(id) || String(c.rowIndex) === String(id));
+    if (idx === -1) return false;
+    const merged = { ...this._customers[idx], ...updates };
+    this._customers[idx] = merged;
+    try { localStorage.setItem('kg_customer_cache', JSON.stringify(this._customers)); } catch (e) {}
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        redirect: 'follow',
+        body: JSON.stringify({
+          action: 'updateCustomer',
+          id: merged.id,
+          rowIndex: merged.rowIndex,
+          data: updates
+        })
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast('✅ Data customer berhasil diupdate di Google Sheets!', 'success');
+      } else {
+        toast('⚠️ ' + (result.error || 'Gagal menyimpan ke Google Sheets'), 'warning');
+      }
+    } catch (e) {
+      console.warn('[KG] Offline update customer — tersimpan lokal:', e.message);
+      toast('💾 Data customer tersimpan lokal (offline)', 'info');
+    }
+    return true;
+  },
+
+  async deleteCustomer(id) {
+    const cust = this.getCustomerById(id);
+    if (!cust) return false;
+    const deletedRow = cust.rowIndex ? Number(cust.rowIndex) : null;
+    this._customers = this._customers.filter(c => String(c.id) !== String(id) && String(c.rowIndex) !== String(id));
+    if (deletedRow != null) {
+      this._customers.forEach(c => {
+        if (c.rowIndex && Number(c.rowIndex) > deletedRow) {
+          c.rowIndex = Number(c.rowIndex) - 1;
+        }
+      });
+    }
+    try { localStorage.setItem('kg_customer_cache', JSON.stringify(this._customers)); } catch (e) {}
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        redirect: 'follow',
+        body: JSON.stringify({
+          action: 'deleteCustomer',
+          id: cust.id,
+          rowIndex: cust.rowIndex,
+          nama: cust.nama,
+          noHp: cust.noHp
+        })
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast('✅ Data customer berhasil dihapus dari Google Sheets!', 'success');
+      } else {
+        toast('⚠️ ' + (result.error || 'Gagal menghapus dari Google Sheets'), 'warning');
+      }
+    } catch (e) {
+      console.warn('[KG] Offline delete customer — terhapus lokal:', e.message);
+      toast('🗑️ Customer terhapus secara lokal', 'info');
+    }
+    return true;
+  },
 
   getAvailableTxYears() { return getAvailableYears(this._transactions, 'tanggal'); },
   getAvailableSalesYears() {
@@ -1757,6 +1844,11 @@ const Charts = {
 // ============ PAGINATION ============
 function makePagination(containerId, current, total, onPage) {
   const c = el(containerId); if (!c) return;
+  c.style.display = 'flex';
+  c.style.flexDirection = 'row';
+  c.style.alignItems = 'center';
+  c.style.gap = '6px';
+  c.style.flexWrap = 'wrap';
   if (total <= 1) { c.innerHTML = ''; return; }
   let h = `<button class="pg-btn" ${current <= 1 ? 'disabled' : ''} onclick="(${onPage})(${current - 1})">‹</button>`;
   for (let i = 1; i <= total; i++) {
@@ -1863,10 +1955,16 @@ const App = {
 
     if (u.role === 'USER') {
       document.body.classList.add('user-mode');
+      document.body.classList.remove('owner-mode');
       const chip = document.getElementById('nav-user-chip');
       if (chip) chip.style.display = 'none';
       this._activePage = 'input';
+    } else if (u.role === 'OWNER') {
+      document.body.classList.add('owner-mode');
+      document.body.classList.remove('user-mode');
+      this._activePage = 'overview';
     } else {
+      document.body.classList.remove('user-mode', 'owner-mode');
       this._activePage = 'overview';
     }
 
@@ -2113,10 +2211,11 @@ const App = {
         <td class="cell-in">${t.uangMasuk ? fmt(t.uangMasuk) : '–'}</td>
         <td class="cell-out">${t.uangKeluar ? fmt(t.uangKeluar) : '–'}</td>
         <td class="cell-saldo">${fmt(t.calcSaldo)}</td>
+        ${Auth.canManage() ? `
         <td class="cell-action">
           <button class="btn-icon-edit" title="Edit" onclick="App.editTx('${t.id}')">✏️</button>
           <button class="btn-icon-del" title="Hapus" onclick="App.confirmDeleteTx('${t.id}')">🗑️</button>
-        </td>
+        </td>` : `<td class="cell-action" style="display:none"></td>`}
       </tr>`).join('');
     }
 
@@ -2125,6 +2224,10 @@ const App = {
   },
 
   editTx(id) {
+    if (!Auth.canManage()) {
+      toast('Hanya Admin yang dapat mengedit transaksi', 'error');
+      return;
+    }
     const t = Store.getTxById(id);
     if (!t) return;
     el('etx-id').value = id;
@@ -2139,6 +2242,10 @@ const App = {
   },
 
   async saveTxEdit() {
+    if (!Auth.canManage()) {
+      toast('Hanya Admin yang dapat menyimpan perubahan transaksi', 'error');
+      return;
+    }
     const id = el('etx-id').value;
     const updates = {
       tanggal: el('etx-tanggal').value,
@@ -2169,6 +2276,10 @@ const App = {
   },
 
   confirmDeleteTx(id) {
+    if (!Auth.canManage()) {
+      toast('Hanya Admin yang dapat menghapus transaksi', 'error');
+      return;
+    }
     const t = Store.getTxById(id);
     if (!t) return;
     if (confirm(`Hapus transaksi:\n"${t.deskripsi}" (${t.tanggal})?\n\nAksi ini tidak bisa dibatalkan.`)) {
@@ -2253,10 +2364,11 @@ const App = {
           <td class="cell-money ${profitClass}" style="line-height:1.2">${fmt(displayProfit)}<br>${profitPct}</td>
           <td>${turnoverBadge}</td>
           <td style="color:var(--text-muted);font-size:12px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.keterangan || '–'}</td>
+          ${Auth.canManage() ? `
           <td class="cell-action">
             <button class="btn-icon-edit" title="Edit" onclick="App.editSale('${s.id}')">✏️</button>
             <button class="btn-icon-del" title="Hapus" onclick="App.confirmDeleteSale('${s.id}')">🗑️</button>
-          </td>
+          </td>` : `<td class="cell-action" style="display:none"></td>`}
         </tr>`;
       }).join('');
     }
@@ -2267,6 +2379,10 @@ const App = {
   },
 
   editSale(id) {
+    if (!Auth.canManage()) {
+      toast('Hanya Admin yang dapat mengedit data penjualan', 'error');
+      return;
+    }
     const s = Store.getSaleById(id);
     if (!s) return;
     el('es-id').value = id;
@@ -2295,6 +2411,10 @@ const App = {
   },
 
   saveSaleEdit() {
+    if (!Auth.canManage()) {
+      toast('Hanya Admin yang dapat menyimpan perubahan penjualan', 'error');
+      return;
+    }
     const id = el('es-id').value;
     const updates = {
       nota: el('es-nota').value.trim(),
@@ -2314,6 +2434,10 @@ const App = {
   },
 
   async confirmDeleteSale(id) {
+    if (!Auth.canManage()) {
+      toast('Hanya Admin yang dapat menghapus data penjualan', 'error');
+      return;
+    }
     const s = Store.getSaleById(id);
     if (!s) return;
     if (confirm(`Hapus unit HP:\n#${s.nota} – ${s.tipeModel || s.tipe}?\n\nData akan dihapus dari Google Sheets.\nAksi ini tidak bisa dibatalkan.`)) {
@@ -2762,7 +2886,7 @@ const App = {
     if (!tbody) return;
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="padding:40px">Tidak ada data customer untuk filter ini.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-state" style="padding:40px">Tidak ada data customer untuk filter ini.</td></tr>`;
       setText('cust-pinfo', '');
       const pagesEl = el('cust-pages');
       if (pagesEl) pagesEl.innerHTML = '';
@@ -2780,6 +2904,7 @@ const App = {
 
     tbody.innerHTML = slice.map((c, i) => {
       const rowIdx = startIdx + i + 1;
+      const custIdentifier = c.id || c.rowIndex || rowIdx;
       const normG = normalizeGender(c.gender);
       const genderBadge = normG === 'Pria' ? 'badge-lainnya' : (normG === 'Wanita' ? 'badge-ekuitas' : 'badge-slate');
       const hpClean = (c.noHp || '').replace(/^0|[\s\-]/g, '');
@@ -2801,11 +2926,101 @@ const App = {
         <td><span class="badge ${genderBadge}">${displayGender}</span></td>
         <td>${c.domisili || '-'}</td>
         <td>${srcDisplay}</td>
+        ${Auth.canManage() ? `
+        <td class="cell-action">
+          <button class="btn-icon-edit" title="Edit Customer" onclick="App.editCustomer('${custIdentifier}')">✏️</button>
+          <button class="btn-icon-del" title="Hapus Customer" onclick="App.confirmDeleteCustomer('${custIdentifier}')">🗑️</button>
+        </td>` : `<td class="cell-action" style="display:none"></td>`}
       </tr>`;
     }).join('');
 
     setText('cust-pinfo', `Hal ${currentPage} / ${totalPages} • Total ${filtered.length} customer`);
     makePagination('cust-pages', currentPage, totalPages, `(pg) => { App.customer.page = pg; App._renderCustomer(); }`);
+  },
+
+  editCustomer(id) {
+    if (!Auth.canManage()) {
+      toast('Hanya Admin yang dapat mengedit customer', 'error');
+      return;
+    }
+    const c = Store.getCustomerById(id);
+    if (!c) {
+      toast('Customer tidak ditemukan', 'error');
+      return;
+    }
+    el('ecust-id').value = c.id || '';
+    el('ecust-row-index').value = c.rowIndex || '';
+    el('ecust-nama').value = c.nama || '';
+    el('ecust-hp').value = c.noHp || '';
+    el('ecust-tanggal').value = c.tanggal || '';
+    el('ecust-produk').value = c.produk || '';
+    el('ecust-gender').value = normalizeGender(c.gender) || '';
+    el('ecust-domisili').value = c.domisili || '';
+    el('ecust-sumber').value = c.sumberInfo || '';
+    el('ecust-usia').value = c.usia || '';
+    el('ecust-keterangan').value = c.keterangan || '';
+    openModal('modal-edit-cust');
+  },
+
+  async saveCustomerEdit() {
+    if (!Auth.canManage()) {
+      toast('Hanya Admin yang dapat menyimpan perubahan customer', 'error');
+      return;
+    }
+    const id = el('ecust-id').value;
+    const rowIndex = parseInt(el('ecust-row-index').value, 10) || null;
+    const nama = el('ecust-nama').value.trim();
+    if (!nama) {
+      toast('Nama customer wajib diisi!', 'error');
+      return;
+    }
+    const updates = {
+      nama,
+      noHp: el('ecust-hp').value.trim(),
+      tanggal: el('ecust-tanggal').value,
+      produk: el('ecust-produk').value.trim(),
+      gender: el('ecust-gender').value,
+      domisili: el('ecust-domisili').value.trim(),
+      sumberInfo: el('ecust-sumber').value.trim(),
+      usia: el('ecust-usia').value.trim(),
+      keterangan: el('ecust-keterangan').value.trim(),
+      rowIndex
+    };
+
+    const submitBtn = el('modal-edit-cust').querySelector('.btn-primary');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Menyimpan...'; }
+
+    const success = await Store.updateCustomer(id, updates);
+    if (success) {
+      toast('Data customer berhasil disimpan!', 'success');
+      closeModal('modal-edit-cust');
+      this._renderCustomer();
+      setText('badge-cust', Store._customers.length);
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg> Simpan Perubahan`;
+    }
+  },
+
+  async confirmDeleteCustomer(id) {
+    if (!Auth.canManage()) {
+      toast('Hanya Admin yang dapat menghapus customer', 'error');
+      return;
+    }
+    const c = Store.getCustomerById(id);
+    if (!c) {
+      toast('Customer tidak ditemukan', 'error');
+      return;
+    }
+    const name = c.nama || 'Customer ini';
+    const prod = c.produk ? ` (${c.produk})` : '';
+    if (confirm(`Hapus data customer:\n"${name}"${prod}?\n\nData akan dihapus dari Google Sheets.\nAksi ini tidak bisa dibatalkan.`)) {
+      await Store.deleteCustomer(id);
+      this._renderCustomer();
+      setText('badge-cust', Store._customers.length);
+    }
   },
 
   resetAllData() {
