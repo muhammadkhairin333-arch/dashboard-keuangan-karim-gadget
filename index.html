@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Dashboard Keuangan & Penjualan Karim Gadget — Monitoring transaksi, data penjualan HP, laporan keuangan, dan input transaksi harian.">
   <title>Karim Gadget — Dashboard Keuangan & Penjualan</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=1.8">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -225,7 +225,7 @@
               <th onclick="App.sortTx('uangMasuk')">Uang Masuk <span id="tx-arr-uangMasuk">↕</span></th>
               <th onclick="App.sortTx('uangKeluar')">Uang Keluar <span id="tx-arr-uangKeluar">↕</span></th>
               <th onclick="App.sortTx('saldo')">Saldo <span id="tx-arr-saldo">↕</span></th>
-              <th style="width:80px">Aksi</th>
+              <th class="col-action" style="width:80px">Aksi</th>
             </tr></thead>
             <tbody id="tx-tbody"></tbody>
           </table>
@@ -580,7 +580,7 @@
                 <th>Profit</th>
                 <th>Waktu Putar</th>
                 <th>Keterangan</th>
-                <th style="width:60px">Aksi</th>
+                <th class="col-action" style="width:80px">Aksi</th>
               </tr>
             </thead>
             <tbody id="sales-table-body"></tbody>
@@ -679,16 +679,17 @@
                 <th>Gender</th>
                 <th>Domisili</th>
                 <th>Sumber Info</th>
+                <th class="col-action" style="width:80px">Aksi</th>
               </tr>
             </thead>
             <tbody id="cust-tbody">
-              <tr><td colspan="8" class="empty-state" style="padding:40px">Memuat data customer...</td></tr>
+              <tr><td colspan="9" class="empty-state" style="padding:40px">Memuat data customer...</td></tr>
             </tbody>
           </table>
         </div>
-        <div class="pagination-wrap" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--border-color);flex-wrap:wrap;gap:8px">
+        <div class="card-footer" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--border-color);flex-wrap:wrap;gap:8px">
           <div class="page-info" id="cust-pinfo" style="font-size:12px;color:var(--text-muted)"></div>
-          <div class="page-btns" id="cust-pages"></div>
+          <div class="pagination" id="cust-pages" style="display:flex;flex-direction:row;align-items:center;gap:6px;flex-wrap:wrap"></div>
         </div>
       </div>
     </section>
@@ -812,6 +813,76 @@
   </div>
 </div>
 
-<script src="app.js?v=1.5"></script>
+<!-- =================== MODAL EDIT CUSTOMER =================== -->
+<div class="modal-overlay" id="modal-edit-cust" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">✏️ Edit Data Customer</div>
+      <button class="modal-close" onclick="closeModal('modal-edit-cust')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ecust-id">
+      <input type="hidden" id="ecust-row-index">
+      <div class="form-grid">
+        <div class="form-group span2">
+          <label class="form-label">Nama Customer <span style="color:var(--accent-red)">*</span></label>
+          <input type="text" class="form-input" id="ecust-nama" placeholder="Nama pelanggan" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">No. HP / WhatsApp</label>
+          <input type="text" class="form-input" id="ecust-hp" placeholder="08xxxxxxxxxx">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tanggal Transaksi</label>
+          <input type="date" class="form-input" id="ecust-tanggal">
+        </div>
+        <div class="form-group span2">
+          <label class="form-label">iPhone / Produk yang Dibeli</label>
+          <input type="text" class="form-input" id="ecust-produk" placeholder="Contoh: iPhone 11 White 128 GB inter">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Gender</label>
+          <select class="form-select" id="ecust-gender">
+            <option value="Pria">Pria (Laki-laki)</option>
+            <option value="Wanita">Wanita (Perempuan)</option>
+            <option value="">(Tidak Disebutkan)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Domisili / Kota</label>
+          <input type="text" class="form-input" id="ecust-domisili" placeholder="Kota / Domisili">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sumber Informasi</label>
+          <input type="text" class="form-input" id="ecust-sumber" list="cust-source-datalist" placeholder="FB Marketplace, TikTok, dll">
+          <datalist id="cust-source-datalist">
+            <option value="Facebook Marketplace">
+            <option value="TikTok">
+            <option value="Threads">
+            <option value="Teman/Referal">
+            <option value="Lainnya">
+          </datalist>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Usia</label>
+          <input type="text" class="form-input" id="ecust-usia" placeholder="Contoh: 24">
+        </div>
+        <div class="form-group span2">
+          <label class="form-label">Keterangan / Catatan</label>
+          <input type="text" class="form-input" id="ecust-keterangan" placeholder="Catatan tambahan">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-edit-cust')">Batal</button>
+      <button class="btn btn-primary" onclick="App.saveCustomerEdit()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+        Simpan Perubahan
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js?v=1.8"></script>
 </body>
 </html>
