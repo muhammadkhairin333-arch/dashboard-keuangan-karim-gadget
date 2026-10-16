@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Dashboard Keuangan & Penjualan Karim Gadget — Monitoring transaksi, data penjualan HP, laporan keuangan, dan input transaksi harian.">
   <title>Karim Gadget — Dashboard Keuangan & Penjualan</title>
-  <link rel="stylesheet" href="styles.css?v=1.8">
+  <link rel="stylesheet" href="styles.css?v=1.9">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -614,6 +614,10 @@
             onchange="App.customer.filterSource=this.value; App.customer.page=1; App._renderCustomer()">
             <option value="">Semua Sumber</option>
           </select>
+          <button class="btn btn-secondary" onclick="App.syncCustomerData()" style="font-size:12.5px;padding:7px 14px;display:flex;align-items:center;gap:6px" title="Ambil data customer terbaru dari Google Sheets">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            <span>Sinkronkan</span>
+          </button>
         </div>
       </div>
 
@@ -883,6 +887,6 @@
   </div>
 </div>
 
-<script src="app.js?v=1.8"></script>
+<script src="app.js?v=1.9"></script>
 </body>
 </html>
