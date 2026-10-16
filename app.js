@@ -362,7 +362,7 @@ const Store = {
     // STEP 2: SYNC GAS DI BACKGROUND (tidak memblokir tampilan)
     // ================================================================
     const cacheStale = this._isCacheStale();
-    const hasLocalData = this._transactions.length > 0 || this._sales.length > 0;
+    const hasLocalData = this._transactions.length > 0 && this._sales.length > 0 && this._customers.length > 0;
 
     if (!cacheStale && hasLocalData) {
       return; // Cache segar, tidak perlu sync
@@ -431,18 +431,29 @@ const Store = {
     // Customers
     try {
       const custCache = localStorage.getItem('kg_customer_cache');
+      let rawCusts = null;
       if (custCache) {
-        this._customers = JSON.parse(custCache).map((c, i) => ({
-          id: c.id ? String(c.id) : String(i + 1),
-          rowIndex: c.rowIndex ? Number(c.rowIndex) : (i + 2),
-          ...c
-        }));
-      } else if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.customers) {
-        this._customers = INITIAL_DATA.customers.map((c, i) => ({
-          id: c.id ? String(c.id) : String(i + 1),
-          rowIndex: c.rowIndex ? Number(c.rowIndex) : (i + 2),
-          ...c
-        }));
+        try { rawCusts = JSON.parse(custCache); } catch(e) {}
+      }
+      if (!rawCusts || !rawCusts.length) {
+        if (typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.customers) {
+          rawCusts = INITIAL_DATA.customers;
+        }
+      }
+      if (rawCusts && Array.isArray(rawCusts)) {
+        this._customers = rawCusts.map((c, i) => {
+          const rowNum = c.rowIndex ? Number(c.rowIndex) : (i + 2);
+          const rawId = c.id ? String(c.id) : String(i + 1);
+          return {
+            ...c,
+            id: rawId,
+            uid: c.uid || ('cust_' + rowNum + '_' + rawId),
+            rowIndex: rowNum,
+            tanggal: parseToIsoDate(c.tanggal) || c.tanggal || ''
+          };
+        }).filter(c => c && (c.nama || c.produk));
+      } else {
+        this._customers = [];
       }
     } catch { this._customers = []; }
   },
@@ -506,13 +517,18 @@ const Store = {
         this._saveNetworthLocal();
 
         // Proses data customer
-        if (data.customers) {
-          this._customers = data.customers.map((c, i) => ({
-            id: c.id ? String(c.id) : String(i + 1),
-            rowIndex: c.rowIndex ? Number(c.rowIndex) : (i + 2),
-            ...c,
-            tanggal: parseToIsoDate(c.tanggal) || c.tanggal || ''
-          })).filter(c => c && (c.nama || c.produk));
+        if (data.customers && Array.isArray(data.customers)) {
+          this._customers = data.customers.map((c, i) => {
+            const rowNum = c.rowIndex ? Number(c.rowIndex) : (i + 2);
+            const rawId = c.id ? String(c.id) : String(i + 1);
+            return {
+              ...c,
+              id: rawId,
+              uid: 'cust_' + rowNum + '_' + rawId,
+              rowIndex: rowNum,
+              tanggal: parseToIsoDate(c.tanggal) || c.tanggal || ''
+            };
+          }).filter(c => c && (c.nama || c.produk));
           try { localStorage.setItem('kg_customer_cache', JSON.stringify(this._customers)); } catch (e) {}
         }
         this._stampCache();
@@ -1057,13 +1073,27 @@ const Store = {
   getSaleById(id) { return this._sales.find(s => String(s.id) === String(id)); },
   getTxById(id) { return this._transactions.find(t => String(t.id) === String(id)); },
   getCustomerById(id) {
-    return this._customers.find(c => String(c.id) === String(id) || String(c.rowIndex) === String(id));
+    if (!id) return null;
+    const sId = String(id).trim();
+    return this._customers.find(c => c.uid === sId)
+        || this._customers.find(c => String(c.id) === sId)
+        || (sId.startsWith('row_') ? this._customers.find(c => Number(c.rowIndex) === parseInt(sId.replace('row_', ''), 10)) : null)
+        || null;
   },
 
   async updateCustomer(id, updates) {
-    const idx = this._customers.findIndex(c => String(c.id) === String(id) || String(c.rowIndex) === String(id));
+    if (!id) return false;
+    const sId = String(id).trim();
+    let idx = this._customers.findIndex(c => c.uid === sId);
+    if (idx === -1) idx = this._customers.findIndex(c => String(c.id) === sId);
+    if (idx === -1 && sId.startsWith('row_')) {
+      const rNum = parseInt(sId.replace('row_', ''), 10);
+      idx = this._customers.findIndex(c => Number(c.rowIndex) === rNum);
+    }
     if (idx === -1) return false;
-    const merged = { ...this._customers[idx], ...updates };
+
+    const current = this._customers[idx];
+    const merged = { ...current, ...updates };
     this._customers[idx] = merged;
     try { localStorage.setItem('kg_customer_cache', JSON.stringify(this._customers)); } catch (e) {}
 
@@ -1095,11 +1125,13 @@ const Store = {
     const cust = this.getCustomerById(id);
     if (!cust) return false;
     const deletedRow = cust.rowIndex ? Number(cust.rowIndex) : null;
-    this._customers = this._customers.filter(c => String(c.id) !== String(id) && String(c.rowIndex) !== String(id));
+    const targetUid = cust.uid;
+    this._customers = this._customers.filter(c => c.uid !== targetUid);
     if (deletedRow != null) {
       this._customers.forEach(c => {
         if (c.rowIndex && Number(c.rowIndex) > deletedRow) {
           c.rowIndex = Number(c.rowIndex) - 1;
+          c.uid = 'cust_' + c.rowIndex + '_' + c.id;
         }
       });
     }
@@ -1988,10 +2020,11 @@ const App = {
     // ---- Step 5: Route ke halaman yang benar ----
     this.go(this._activePage);
     setText('badge-tx', Store._transactions.length);
+    setText('badge-cust', Store._customers.length);
 
     // ---- Step 6: Sync GAS di background (tidak blokir UI) ----
     const cacheStale = Store._isCacheStale();
-    const hasData = Store._transactions.length > 0 || Store._sales.length > 0;
+    const hasData = Store._transactions.length > 0 && Store._sales.length > 0 && Store._customers.length > 0;
     if (!hasData || cacheStale) {
       Store._syncFromGAS(); // Fire-and-forget background sync
     }
@@ -2040,7 +2073,12 @@ const App = {
       penjualan: () => this._renderSales(),
       input: () => this._renderInput(),
       laporan: () => this._renderLaporan(),
-      customer: () => this._renderCustomer()
+      customer: () => {
+        if (!Store._customers || Store._customers.length === 0) {
+          Store._syncFromGAS();
+        }
+        this._renderCustomer();
+      }
     };
     (r[page] || (() => { }))();
   },
@@ -2904,7 +2942,7 @@ const App = {
 
     tbody.innerHTML = slice.map((c, i) => {
       const rowIdx = startIdx + i + 1;
-      const custIdentifier = c.id || c.rowIndex || rowIdx;
+      const custIdentifier = c.uid || ('cust_' + c.rowIndex + '_' + c.id);
       const normG = normalizeGender(c.gender);
       const genderBadge = normG === 'Pria' ? 'badge-lainnya' : (normG === 'Wanita' ? 'badge-ekuitas' : 'badge-slate');
       const hpClean = (c.noHp || '').replace(/^0|[\s\-]/g, '');
@@ -2938,6 +2976,14 @@ const App = {
     makePagination('cust-pages', currentPage, totalPages, `(pg) => { App.customer.page = pg; App._renderCustomer(); }`);
   },
 
+  async syncCustomerData() {
+    toast('🔄 Menyinkronkan data customer dari Google Sheets...', 'info');
+    await Store._syncFromGAS();
+    this._renderCustomer();
+    setText('badge-cust', Store._customers.length);
+    toast('✅ Data customer berhasil disinkronkan!', 'success');
+  },
+
   editCustomer(id) {
     if (!Auth.canManage()) {
       toast('Hanya Admin yang dapat mengedit customer', 'error');
@@ -2948,7 +2994,7 @@ const App = {
       toast('Customer tidak ditemukan', 'error');
       return;
     }
-    el('ecust-id').value = c.id || '';
+    el('ecust-id').value = c.uid || c.id || '';
     el('ecust-row-index').value = c.rowIndex || '';
     el('ecust-nama').value = c.nama || '';
     el('ecust-hp').value = c.noHp || '';
