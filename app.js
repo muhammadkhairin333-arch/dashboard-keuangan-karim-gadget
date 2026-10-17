@@ -1081,6 +1081,47 @@ const Store = {
         || null;
   },
 
+  async addCustomer(cust) {
+    const nextRow = (this._customers.length > 0)
+      ? Math.max(...this._customers.map(c => Number(c.rowIndex) || 2)) + 1
+      : 2;
+    const nextId = (this._customers.length > 0)
+      ? Math.max(...this._customers.map(c => Number(c.id) || 1)) + 1
+      : 1;
+
+    const newCust = {
+      ...cust,
+      id: String(nextId),
+      rowIndex: nextRow,
+      uid: 'cust_' + nextRow + '_' + nextId,
+      tanggal: parseToIsoDate(cust.tanggal) || cust.tanggal || ''
+    };
+
+    this._customers.unshift(newCust);
+    try { localStorage.setItem('kg_customer_cache', JSON.stringify(this._customers)); } catch (e) {}
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        redirect: 'follow',
+        body: JSON.stringify({
+          action: 'addCustomer',
+          data: newCust
+        })
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast('✅ Data customer baru berhasil disimpan ke Google Sheets!', 'success');
+      } else {
+        toast('⚠️ ' + (result.error || 'Gagal menyimpan ke Google Sheets'), 'warning');
+      }
+    } catch (e) {
+      console.warn('[KG] Offline add customer — tersimpan lokal:', e.message);
+      toast('💾 Data customer tersimpan lokal (offline)', 'info');
+    }
+    return newCust;
+  },
+
   async updateCustomer(id, updates) {
     if (!id) return false;
     const sId = String(id).trim();
@@ -1145,8 +1186,7 @@ const Store = {
           action: 'deleteCustomer',
           id: cust.id,
           rowIndex: cust.rowIndex,
-          nama: cust.nama,
-          noHp: cust.noHp
+          nama: cust.nama
         })
       });
       const result = await res.json();
@@ -2492,6 +2532,7 @@ const App = {
     if (el('f-tanggal')) el('f-tanggal').value = today;
     if (el('f-buy-tanggal')) el('f-buy-tanggal').value = today;
     if (el('f-sell-tanggal')) el('f-sell-tanggal').value = today;
+    if (el('f-cust-tanggal')) el('f-cust-tanggal').value = today;
     this._updateSaldoDisplay();
 
     if (el('f-kategori')) el('f-kategori').onchange = () => this._updateMoneyFields();
@@ -2508,6 +2549,7 @@ const App = {
     if (el('input-form')) el('input-form').onsubmit = (e) => { e.preventDefault(); this._submitTx(); };
     if (el('buy-form')) el('buy-form').onsubmit = (e) => { e.preventDefault(); this._submitBuy(); };
     if (el('sell-form')) el('sell-form').onsubmit = (e) => { e.preventDefault(); this._submitSell(); };
+    if (el('customer-form')) el('customer-form').onsubmit = (e) => { e.preventDefault(); this._submitCustomer(); };
 
     if (el('f-buy-harga-beli')) el('f-buy-harga-beli').oninput = () => this._updateBuyPreview();
     ['f-sell-unit', 'f-sell-harga-jual'].forEach(fid => {
@@ -2519,6 +2561,9 @@ const App = {
     this._updateSaldoDisplay();
     this._refreshSellUnitOptions();
     if (el('f-buy-nota')) el('f-buy-nota').value = Store.getNextNota();
+    if (el('f-cust-tanggal') && !el('f-cust-tanggal').value) {
+      el('f-cust-tanggal').value = new Date().toISOString().split('T')[0];
+    }
   },
 
   switchInputTab(tab) {
@@ -2526,6 +2571,9 @@ const App = {
     document.querySelectorAll('.input-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.querySelectorAll('.input-tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === tab));
     if (tab === 'jual') this._refreshSellUnitOptions();
+    if (tab === 'customer' && el('f-cust-tanggal') && !el('f-cust-tanggal').value) {
+      el('f-cust-tanggal').value = new Date().toISOString().split('T')[0];
+    }
   },
 
   _refreshSellUnitOptions() {
@@ -2701,6 +2749,44 @@ const App = {
     this._refreshSellUnitOptions();
   },
 
+  async _submitCustomer() {
+    const nama = el('f-cust-nama') ? el('f-cust-nama').value.trim() : '';
+    const tanggal = el('f-cust-tanggal') ? el('f-cust-tanggal').value : '';
+    const produk = el('f-cust-produk') ? el('f-cust-produk').value.trim() : '';
+    const gender = el('f-cust-gender') ? el('f-cust-gender').value : '';
+    if (!nama) { toast('Nama customer wajib diisi!', 'error'); return; }
+    if (!isValidDate(tanggal)) { toast('Tanggal pembelian tidak valid!', 'error'); return; }
+    if (!produk) { toast('Produk / unit yang dibeli wajib diisi!', 'error'); return; }
+    if (!gender) { toast('Pilih jenis kelamin / gender!', 'error'); return; }
+
+    const custBtn = el('customer-form') ? el('customer-form').querySelector('button[type="submit"]') : null;
+    if (custBtn) { custBtn.disabled = true; custBtn.textContent = 'Menyimpan...'; }
+
+    await Store.addCustomer({
+      nama,
+      tanggal,
+      produk,
+      gender,
+      domisili: el('f-cust-domisili') ? el('f-cust-domisili').value.trim() : '',
+      sumberInfo: el('f-cust-sumber') ? el('f-cust-sumber').value.trim() : '',
+      usia: el('f-cust-usia') ? el('f-cust-usia').value.trim() : '',
+      keterangan: el('f-cust-keterangan') ? el('f-cust-keterangan').value.trim() : ''
+    });
+
+    if (custBtn) {
+      custBtn.disabled = false;
+      custBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Simpan Data Customer`;
+    }
+    setText('badge-cust', Store._customers.length);
+    toast(`✅ Data customer "${nama}" berhasil disimpan!`, 'success');
+    this.resetCustomerForm();
+  },
+
+  resetCustomerForm() {
+    if (el('customer-form')) el('customer-form').reset();
+    if (el('f-cust-tanggal')) el('f-cust-tanggal').value = new Date().toISOString().split('T')[0];
+  },
+
   // ---- Laporan ----
   _renderLaporan() {
     const filter = this.laporan.filter;
@@ -2821,7 +2907,6 @@ const App = {
     if (search) {
       filtered = filtered.filter(c =>
         (c.nama || '').toLowerCase().includes(search) ||
-        (c.noHp || '').toLowerCase().includes(search) ||
         (c.domisili || '').toLowerCase().includes(search) ||
         (c.produk || '').toLowerCase().includes(search) ||
         (c.sumberInfo || '').toLowerCase().includes(search)
@@ -2839,6 +2924,20 @@ const App = {
         filtered = filtered.filter(c => (c.sumberInfo || '').trim() === filterSource);
       }
     }
+
+    // Urutkan customer dari yang terbaru (tanggal terbaru di atas, atau entri/baris sheet terbaru)
+    filtered = [...filtered].sort((a, b) => {
+      const dateA = a.tanggal || '';
+      const dateB = b.tanggal || '';
+      if (dateA && dateB && dateA !== dateB) {
+        return dateB.localeCompare(dateA);
+      }
+      if (dateA && !dateB) return -1;
+      if (!dateA && dateB) return 1;
+      const rowDiff = (Number(b.rowIndex) || 0) - (Number(a.rowIndex) || 0);
+      if (rowDiff !== 0) return rowDiff;
+      return (Number(b.id) || 0) - (Number(a.id) || 0);
+    });
 
     // ---- Demografi Keseluruhan (Stabil, tidak berkurang saat tabel difilter) ----
     const allTotal = customers.length;
@@ -2924,7 +3023,7 @@ const App = {
     if (!tbody) return;
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="9" class="empty-state" style="padding:40px">Tidak ada data customer untuk filter ini.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="padding:40px">Tidak ada data customer untuk filter ini.</td></tr>`;
       setText('cust-pinfo', '');
       const pagesEl = el('cust-pages');
       if (pagesEl) pagesEl.innerHTML = '';
@@ -2945,10 +3044,6 @@ const App = {
       const custIdentifier = c.uid || ('cust_' + c.rowIndex + '_' + c.id);
       const normG = normalizeGender(c.gender);
       const genderBadge = normG === 'Pria' ? 'badge-lainnya' : (normG === 'Wanita' ? 'badge-ekuitas' : 'badge-slate');
-      const hpClean = (c.noHp || '').replace(/^0|[\s\-]/g, '');
-      const hpDisplay = c.noHp
-        ? `<a href="https://wa.me/62${hpClean}" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-weight:500">📱 ${c.noHp}</a>`
-        : '<span style="color:var(--text-muted)">-</span>';
       const displayGender = normG || c.gender || '-';
       const srcDisplay = c.sumberInfo
         ? `<span class="badge badge-slate">${c.sumberInfo}</span>`
@@ -2958,7 +3053,6 @@ const App = {
       <tr>
         <td class="cell-mono" style="color:var(--text-muted)">${rowIdx}</td>
         <td style="font-weight:600">${c.nama || '-'}</td>
-        <td>${hpDisplay}</td>
         <td class="cell-mono">${c.tanggal ? fmtDate(c.tanggal) : '-'}</td>
         <td style="font-weight:500">${c.produk || '-'}</td>
         <td><span class="badge ${genderBadge}">${displayGender}</span></td>
@@ -2997,7 +3091,6 @@ const App = {
     el('ecust-id').value = c.uid || c.id || '';
     el('ecust-row-index').value = c.rowIndex || '';
     el('ecust-nama').value = c.nama || '';
-    el('ecust-hp').value = c.noHp || '';
     el('ecust-tanggal').value = c.tanggal || '';
     el('ecust-produk').value = c.produk || '';
     el('ecust-gender').value = normalizeGender(c.gender) || '';
@@ -3022,7 +3115,6 @@ const App = {
     }
     const updates = {
       nama,
-      noHp: el('ecust-hp').value.trim(),
       tanggal: el('ecust-tanggal').value,
       produk: el('ecust-produk').value.trim(),
       gender: el('ecust-gender').value,
