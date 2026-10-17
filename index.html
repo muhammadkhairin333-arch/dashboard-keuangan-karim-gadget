@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Dashboard Keuangan & Penjualan Karim Gadget — Monitoring transaksi, data penjualan HP, laporan keuangan, dan input transaksi harian.">
   <title>Karim Gadget — Dashboard Keuangan & Penjualan</title>
-  <link rel="stylesheet" href="styles.css?v=1.9">
+  <link rel="stylesheet" href="styles.css?v=2.1">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -257,6 +257,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/></svg>
           🏷️ Jual Unit HP
         </button>
+        <button class="input-tab-btn" data-tab="customer" onclick="App.switchInputTab('customer')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          👥 Data Customer
+        </button>
       </div>
 
       <div class="form-wrap">
@@ -420,6 +424,72 @@
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                   Simpan Penjualan Unit
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- TAB CUSTOMER -->
+        <div class="input-tab-panel" data-tab="customer">
+          <div class="card" style="padding:28px;box-shadow:var(--shadow-md)">
+            <div style="margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border-subtle)">
+              <h3 style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:4px">👥 Input Data Demografi Customer</h3>
+              <p style="font-size:12.5px;color:var(--text-muted)">Catat profil pelanggan baru untuk pemetaan pasar, promosi, dan analisis demografis</p>
+            </div>
+            <form id="customer-form">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label" for="f-cust-nama">Nama Customer <span class="req">*</span></label>
+                  <input type="text" class="form-input" id="f-cust-nama" placeholder="cth: Budi Santoso" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="f-cust-tanggal">Tanggal Pembelian <span class="req">*</span></label>
+                  <input type="date" class="form-input" id="f-cust-tanggal" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="f-cust-produk">Produk / Unit yang Dibeli <span class="req">*</span></label>
+                  <input type="text" class="form-input" id="f-cust-produk" placeholder="cth: iPhone 13 128GB Midnight" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="f-cust-gender">Gender / Jenis Kelamin <span class="req">*</span></label>
+                  <select class="form-select" id="f-cust-gender" required>
+                    <option value="">Pilih gender...</option>
+                    <option value="Pria">Laki-laki / Pria</option>
+                    <option value="Wanita">Perempuan / Wanita</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="f-cust-domisili">Kota / Domisili</label>
+                  <input type="text" class="form-input" id="f-cust-domisili" placeholder="cth: Bekasi / Jakarta Timur">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="f-cust-sumber">Sumber Informasi Pelanggan</label>
+                  <input type="text" class="form-input" id="f-cust-sumber" list="cust-source-input-list" placeholder="Pilih atau ketik sumber...">
+                  <datalist id="cust-source-input-list">
+                    <option value="Facebook Marketplace">
+                    <option value="TikTok">
+                    <option value="Instagram">
+                    <option value="Teman / Rekomendasi">
+                    <option value="Langganan / Repeat Order">
+                    <option value="Google / Maps">
+                    <option value="WhatsApp">
+                  </datalist>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="f-cust-usia">Usia / Rentang Umur</label>
+                  <input type="text" class="form-input" id="f-cust-usia" placeholder="cth: 24">
+                </div>
+                <div class="form-group span2">
+                  <label class="form-label" for="f-cust-keterangan">Keterangan / Catatan Tambahan</label>
+                  <input type="text" class="form-input" id="f-cust-keterangan" placeholder="opsional (cth: tukar tambah, COD, garansi, dll)">
+                </div>
+              </div>
+              <div class="btn-group" style="margin-top:20px">
+                <button type="submit" class="btn btn-primary" style="background:var(--accent-gradient)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  Simpan Data Customer
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="App.resetCustomerForm()">Reset</button>
               </div>
             </form>
           </div>
@@ -602,7 +672,7 @@
         </div>
         <!-- Filter & Search -->
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-          <input type="text" class="form-input" id="cust-search" placeholder="Cari nama / kota / HP / produk..." style="width:240px"
+          <input type="text" class="form-input" id="cust-search" placeholder="Cari nama / kota / produk..." style="width:240px"
             oninput="App.customer.search=this.value; App.customer.page=1; App._renderCustomer()">
           <select class="form-select" id="cust-filter-gender" style="width:170px"
             onchange="App.customer.filterGender=this.value; App.customer.page=1; App._renderCustomer()">
@@ -677,7 +747,6 @@
               <tr>
                 <th>#</th>
                 <th>Nama</th>
-                <th>No HP / WA</th>
                 <th>Tanggal</th>
                 <th>Produk</th>
                 <th>Gender</th>
@@ -687,7 +756,7 @@
               </tr>
             </thead>
             <tbody id="cust-tbody">
-              <tr><td colspan="9" class="empty-state" style="padding:40px">Memuat data customer...</td></tr>
+              <tr><td colspan="8" class="empty-state" style="padding:40px">Memuat data customer...</td></tr>
             </tbody>
           </table>
         </div>
@@ -828,13 +897,9 @@
       <input type="hidden" id="ecust-id">
       <input type="hidden" id="ecust-row-index">
       <div class="form-grid">
-        <div class="form-group span2">
+        <div class="form-group">
           <label class="form-label">Nama Customer <span style="color:var(--accent-red)">*</span></label>
           <input type="text" class="form-input" id="ecust-nama" placeholder="Nama pelanggan" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">No. HP / WhatsApp</label>
-          <input type="text" class="form-input" id="ecust-hp" placeholder="08xxxxxxxxxx">
         </div>
         <div class="form-group">
           <label class="form-label">Tanggal Transaksi</label>
@@ -887,6 +952,6 @@
   </div>
 </div>
 
-<script src="app.js?v=1.9"></script>
+<script src="app.js?v=2.1"></script>
 </body>
 </html>
