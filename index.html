@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Dashboard Keuangan & Penjualan Karim Gadget — Monitoring transaksi, data penjualan HP, laporan keuangan, dan input transaksi harian.">
   <title>Karim Gadget — Dashboard Keuangan & Penjualan</title>
-  <link rel="stylesheet" href="styles.css?v=2.1">
+  <link rel="stylesheet" href="styles.css?v=2.3">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="data/initial-data.js"></script>
+  <script src="data/initial-data.js?v=2.3"></script>
 </head>
 <body>
 
@@ -464,16 +464,18 @@
                 </div>
                 <div class="form-group">
                   <label class="form-label" for="f-cust-sumber">Sumber Informasi Pelanggan</label>
-                  <input type="text" class="form-input" id="f-cust-sumber" list="cust-source-input-list" placeholder="Pilih atau ketik sumber...">
-                  <datalist id="cust-source-input-list">
-                    <option value="Facebook Marketplace">
-                    <option value="TikTok">
-                    <option value="Instagram">
-                    <option value="Teman / Rekomendasi">
-                    <option value="Langganan / Repeat Order">
-                    <option value="Google / Maps">
-                    <option value="WhatsApp">
-                  </datalist>
+                  <select class="form-select" id="f-cust-sumber">
+                    <option value="">Pilih Sumber Informasi...</option>
+                    <option value="Facebook Marketplace">Facebook Marketplace</option>
+                    <option value="TikTok">TikTok</option>
+                    <option value="Instagram">Instagram</option>
+                    <option value="Threads">Threads</option>
+                    <option value="Teman/Referal">Teman / Referal</option>
+                    <option value="WhatsApp">WhatsApp</option>
+                    <option value="Langganan / Repeat Order">Langganan / Repeat Order</option>
+                    <option value="Google / Maps">Google / Maps</option>
+                    <option value="Lainnya">Lainnya</option>
+                  </select>
                 </div>
                 <div class="form-group">
                   <label class="form-label" for="f-cust-usia">Usia / Rentang Umur</label>
@@ -923,14 +925,18 @@
         </div>
         <div class="form-group">
           <label class="form-label">Sumber Informasi</label>
-          <input type="text" class="form-input" id="ecust-sumber" list="cust-source-datalist" placeholder="FB Marketplace, TikTok, dll">
-          <datalist id="cust-source-datalist">
-            <option value="Facebook Marketplace">
-            <option value="TikTok">
-            <option value="Threads">
-            <option value="Teman/Referal">
-            <option value="Lainnya">
-          </datalist>
+          <select class="form-select" id="ecust-sumber">
+            <option value="">Pilih Sumber Informasi...</option>
+            <option value="Facebook Marketplace">Facebook Marketplace</option>
+            <option value="TikTok">TikTok</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Threads">Threads</option>
+            <option value="Teman/Referal">Teman / Referal</option>
+            <option value="WhatsApp">WhatsApp</option>
+            <option value="Langganan / Repeat Order">Langganan / Repeat Order</option>
+            <option value="Google / Maps">Google / Maps</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
         </div>
         <div class="form-group">
           <label class="form-label">Usia</label>
@@ -952,6 +958,6 @@
   </div>
 </div>
 
-<script src="app.js?v=2.1"></script>
+<script src="app.js?v=2.3"></script>
 </body>
 </html>
