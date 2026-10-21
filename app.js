@@ -301,11 +301,16 @@ function getAvailableYears(arr, field) {
 
 // ============ CATEGORY MAPPER ============
 function mapCategory(raw = '', desc = '') {
-  const k = raw.trim();
+  const k = (raw || '').trim();
   const kLower = k.toLowerCase();
   
   if (kLower === 'penjualan utama' || kLower === 'pendapatan utama') return 'Penjualan Utama';
-  if (kLower === 'pendapatan lainnya' || kLower === 'penjualan lainnya' || kLower === 'pendapatan') return 'Pendapatan lainnya';
+  if (kLower === 'pendapatan lainnya' || kLower === 'penjualan lainnya') return 'Pendapatan lainnya';
+  if (kLower === 'pendapatan') {
+    // Jika data di sheet masih tertulis 'Pendapatan', deteksi dari deskripsi transaksi
+    if (/iphone|ipad|watch|unit|hp|pro max|plus|mini|nota|se|xr|xs/i.test(desc)) return 'Penjualan Utama';
+    return 'Pendapatan lainnya';
+  }
   if (kLower === 'inventory' || kLower === 'hpp (inventory)' || kLower === 'invenroty') return 'Inventory';
   if (kLower === 'biaya operasional' || kLower === 'operasional' || kLower === 'expenses') return 'Biaya Operasional';
   if (kLower === 'biaya bank' || kLower === 'biaya bank & admin' || kLower === 'biaya bank dan administrasi' || kLower === 'expensess') return 'Biaya Bank';
@@ -347,6 +352,18 @@ const Store = {
   },
 
   async init() {
+    // Cek versi aplikasi — jika versi berubah (update baru), hapus cache lama agar device (terutama HP) langsung fresh
+    const APP_VERSION = '2.3';
+    const storedVer = localStorage.getItem('kg_app_version');
+    if (storedVer !== APP_VERSION) {
+      localStorage.removeItem('kg_customer_cache');
+      localStorage.removeItem('kg_tx_cache');
+      localStorage.removeItem('kg_sales_cache');
+      localStorage.removeItem('kg_nw_cache');
+      localStorage.removeItem('kg_cache_ts');
+      localStorage.setItem('kg_app_version', APP_VERSION);
+    }
+
     // ================================================================
     // STEP 1: MUAT DATA LOKAL (INSTANT — tidak perlu tunggu GAS)
     // Prioritas: localStorage cache > INITIAL_DATA bundled
@@ -361,14 +378,6 @@ const Store = {
     // ================================================================
     // STEP 2: SYNC GAS DI BACKGROUND (tidak memblokir tampilan)
     // ================================================================
-    const cacheStale = this._isCacheStale();
-    const hasLocalData = this._transactions.length > 0 && this._sales.length > 0 && this._customers.length > 0;
-
-    if (!cacheStale && hasLocalData) {
-      return; // Cache segar, tidak perlu sync
-    }
-
-    // Jalankan sync di background tanpa blokir UI
     this._syncFromGAS();
   },
 
@@ -464,11 +473,11 @@ const Store = {
     const badge = this._showSyncBadge();
 
     try {
-      const res = await apiFetch(API_URL, { redirect: 'follow' }, 20000);
+      const res = await apiFetch(API_URL, { redirect: 'follow' }, 35000);
       if (!res.ok) throw new Error('HTTP error: ' + res.status);
       const data = await res.json();
 
-      if (data && (data.transactions || data.sales)) {
+      if (data && (data.transactions || data.sales || data.customers)) {
         let skipped = 0;
 
         // Proses transaksi
@@ -539,10 +548,13 @@ const Store = {
         if (typeof App !== 'undefined' && App._rendered) {
           setTimeout(() => App.render(), 300);
         }
+        return true;
       }
+      return false;
     } catch (e) {
       console.warn('[KG] Background sync gagal:', e.message);
       this._updateSyncBadge(badge, 'error');
+      return false;
     }
   },
 
@@ -2062,12 +2074,8 @@ const App = {
     setText('badge-tx', Store._transactions.length);
     setText('badge-cust', Store._customers.length);
 
-    // ---- Step 6: Sync GAS di background (tidak blokir UI) ----
-    const cacheStale = Store._isCacheStale();
-    const hasData = Store._transactions.length > 0 && Store._sales.length > 0 && Store._customers.length > 0;
-    if (!hasData || cacheStale) {
-      Store._syncFromGAS(); // Fire-and-forget background sync
-    }
+    // ---- Step 6: Sync GAS di background (selalu jalankan tanpa blokir UI) ----
+    Store._syncFromGAS();
 
     // Auto-refresh setiap 5 menit (background)
     if (this._autoRefreshTimer) clearInterval(this._autoRefreshTimer);
@@ -2691,8 +2699,7 @@ const App = {
     const submitBtn = el('input-form') ? el('input-form').querySelector('button[type="submit"]') : null;
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Menyimpan...'; }
 
-    let sheetKat = kat;
-    if (kat === 'Penjualan Utama' || kat === 'Pendapatan Lainnya') sheetKat = 'Pendapatan';
+    const sheetKat = kat;
 
     await Store.addTx({
       tanggal, deskripsi: el('f-desc').value.trim(), kategori: kat, kategoriRaw: sheetKat,
@@ -3040,7 +3047,8 @@ const App = {
     const slice = filtered.slice(startIdx, startIdx + limit);
 
     tbody.innerHTML = slice.map((c, i) => {
-      const rowIdx = startIdx + i + 1;
+      // Urutkan nomor dari transaksi terbaru (gunakan c.id dari sheet atau hitung mundur dari total data)
+      const rowIdx = c.id ? c.id : (filtered.length - (startIdx + i));
       const custIdentifier = c.uid || ('cust_' + c.rowIndex + '_' + c.id);
       const normG = normalizeGender(c.gender);
       const genderBadge = normG === 'Pria' ? 'badge-lainnya' : (normG === 'Wanita' ? 'badge-ekuitas' : 'badge-slate');
@@ -3051,7 +3059,7 @@ const App = {
 
       return `
       <tr>
-        <td class="cell-mono" style="color:var(--text-muted)">${rowIdx}</td>
+        <td class="cell-mono" style="color:var(--text-muted);font-weight:600">#${rowIdx}</td>
         <td style="font-weight:600">${c.nama || '-'}</td>
         <td class="cell-mono">${c.tanggal ? fmtDate(c.tanggal) : '-'}</td>
         <td style="font-weight:500">${c.produk || '-'}</td>
@@ -3072,10 +3080,14 @@ const App = {
 
   async syncCustomerData() {
     toast('🔄 Menyinkronkan data customer dari Google Sheets...', 'info');
-    await Store._syncFromGAS();
+    const ok = await Store._syncFromGAS();
     this._renderCustomer();
     setText('badge-cust', Store._customers.length);
-    toast('✅ Data customer berhasil disinkronkan!', 'success');
+    if (ok) {
+      toast(`✅ Data customer berhasil disinkronkan (${Store._customers.length} data)!`, 'success');
+    } else {
+      toast('⚠️ Gagal terhubung ke Google Sheets. Menggunakan data tersimpan.', 'warning');
+    }
   },
 
   editCustomer(id) {
@@ -3095,7 +3107,18 @@ const App = {
     el('ecust-produk').value = c.produk || '';
     el('ecust-gender').value = normalizeGender(c.gender) || '';
     el('ecust-domisili').value = c.domisili || '';
-    el('ecust-sumber').value = c.sumberInfo || '';
+    const srcVal = c.sumberInfo || '';
+    const srcSelect = el('ecust-sumber');
+    if (srcSelect) {
+      const exists = Array.from(srcSelect.options).some(o => o.value.toLowerCase() === srcVal.toLowerCase());
+      if (!exists && srcVal) {
+        const opt = document.createElement('option');
+        opt.value = srcVal;
+        opt.textContent = srcVal;
+        srcSelect.appendChild(opt);
+      }
+      srcSelect.value = srcVal;
+    }
     el('ecust-usia').value = c.usia || '';
     el('ecust-keterangan').value = c.keterangan || '';
     openModal('modal-edit-cust');
